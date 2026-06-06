@@ -1,0 +1,16 @@
+export const SECTIONS = [
+  { key: 'welcome',             label: 'Welcome',               icon: 'waving_hand',      order: 1 },
+  { key: 'entry',               label: 'How to Enter',          icon: 'key',              order: 2 },
+  { key: 'parking',             label: 'Parking',               icon: 'local_parking',    order: 3 },
+  { key: 'wifi',                label: 'Wi-Fi',                 icon: 'wifi',             order: 4 },
+  { key: 'house_rules',         label: 'House Rules',           icon: 'gavel',            order: 5 },
+  { key: 'the_home',            label: 'The Home',              icon: 'home',             order: 6 },
+  { key: 'additional_space',    label: 'Additional Space',      icon: 'meeting_room',     order: 7, parentKey: 'the_home' },
+  { key: 'outdoor_spaces',      label: 'Outdoor Spaces',        icon: 'deck',             order: 8 },
+  { key: 'services_maintenance',label: 'Services & Maintenance',icon: 'build',            order: 9 },
+  { key: 'videos',              label: 'Video Guides',          icon: 'play_circle',      order: 10 },
+  { key: 'local_guide',         label: 'Local Guide',           icon: 'explore',          order: 11 },
+  { key: 'things_to_do',        label: 'Things to Do',          icon: 'attractions',      order: 12 },
+  { key: 'transport',           label: 'Transportation Options', icon: 'directions',       order: 13 },
+  { key: 'checkout',            label: 'Check-Out',             icon: 'logout',           order: 14 },
+]
