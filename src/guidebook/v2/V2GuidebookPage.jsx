@@ -6,6 +6,8 @@ import Icon from '../../components/Icon'
 
 const MAIN_SECTIONS = SECTIONS.filter((s) => s.key !== 'checkout' && s.key !== 'videos')
 
+const imgUrl = (path) => path ? `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}` : path
+
 // ─── Day theme constants ───────────────────────────────────────────────────
 const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
 const OCEAN     = 'linear-gradient(135deg, #0C4A6E 0%, #0369A1 50%, #0284C7 100%)'
@@ -64,7 +66,7 @@ function BlockImages({ images }) {
       : 'grid-cols-2 md:grid-cols-3'}`}>
       {images.map((img, i) => (
         <figure key={i} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
-          <img src={img.src} alt={img.caption} className="w-full object-cover"
+          <img src={imgUrl(img.src)} alt={img.caption} className="w-full object-cover"
             style={{ maxHeight: images.length === 1 ? '360px' : '220px' }} />
           {img.caption && (
             <figcaption className="px-3 py-1.5 text-[11px] text-center" style={{ color: MUTED, background: '#FFF7ED' }}>
@@ -85,7 +87,7 @@ function ContentBlock({ block }) {
     <div className="mb-6 last:mb-0">
       {isPlace && block.images?.[0]?.src && (
         <div className="mb-3 rounded-xl overflow-hidden" style={{ maxHeight: 180, border: `1px solid ${BORDER}` }}>
-          <img src={block.images[0].src} alt={block.title} className="w-full h-44 object-cover" />
+          <img src={imgUrl(block.images[0].src)} alt={block.title} className="w-full h-44 object-cover" />
         </div>
       )}
       {block.title && (
@@ -147,7 +149,7 @@ function PlaceCard({ block, activeId, setActiveId }) {
           style2={{ border: `1px solid ${BORDER}`, background: CARD_BG }}>
           {hasImage ? (
             <div className="relative flex-1 overflow-hidden">
-              <img src={block.images[0].src} alt={block.title} className="w-full h-full object-cover" />
+              <img src={imgUrl(block.images[0].src)} alt={block.title} className="w-full h-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: 'linear-gradient(to top, rgba(124,45,18,0.85), transparent)' }} />
               <div className="absolute bottom-0 inset-x-0 p-3">
                 <p className="text-white font-bold text-[13px] leading-tight line-clamp-2">{block.title}</p>
@@ -270,7 +272,7 @@ function VideoCard({ block }) {
       className="block rounded-2xl overflow-hidden shadow-sm group" style={{ height: 220, border: `1px solid ${BORDER}` }}>
       <div className="relative w-full h-full" style={{ background: '#FDE8D8' }}>
         {thumb ? (
-          <img src={thumb} alt={block.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <img src={imgUrl(thumb)} alt={block.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Icon name="videocam" size={40} style={{ color: 'rgba(200,75,49,0.3)' }} />
@@ -518,7 +520,7 @@ export default function V2GuidebookPage() {
     TEXT:     nightMode ? N_TEXT      : TEXT,
     SUNSET:   nightMode ? N_SUNSET    : SUNSET,
     OCEAN:    nightMode ? N_OCEAN     : OCEAN,
-    HERO_IMG: nightMode ? '/images/nightview.png' : '/images/newhero.png',
+    HERO_IMG: nightMode ? imgUrl('/images/nightview.png') : imgUrl('/images/newhero.png'),
     HERO_OVERLAY: nightMode
       ? 'linear-gradient(to right, rgba(15,10,40,0.92) 0%, rgba(30,15,80,0.72) 22%, rgba(50,20,100,0.25) 55%, rgba(0,0,0,0.08) 100%)'
       : 'linear-gradient(to right, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.60) 22%, rgba(0,0,0,0.22) 50%, rgba(0,0,0,0.10) 100%)',
@@ -563,8 +565,8 @@ export default function V2GuidebookPage() {
 
   const exteriorPhoto = property.photos?.exterior
     || (slug === 'reynard-way'
-        ? '/photos/reynard-way/p7_img1_720x480.png'
-        : '/photos/hawk-street/p6_img1_1272x850.jpeg')
+        ? imgUrl('/photos/reynard-way/p7_img1_720x480.png')
+        : imgUrl('/photos/hawk-street/p6_img1_1272x850.jpeg'))
 
   const renderSection = (section) => {
     const sectionBlocks = blocks[section.key] || []
@@ -652,7 +654,7 @@ export default function V2GuidebookPage() {
           width: 'clamp(180px, 40%, 480px)',
           transform: 'translateY(-30%)',
         }}>
-          <img src="/images/talo-logo.png" alt="TALO Rentals"
+          <img src={imgUrl('/images/talo-logo.png')} alt="TALO Rentals"
             style={{
               width: '100%', height: 'auto', maxHeight: 240, objectFit: 'contain',
               filter: 'drop-shadow(0 2px 14px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
