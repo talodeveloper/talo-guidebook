@@ -59,7 +59,7 @@ export default function Checkout() {
       {/* Back link */}
       <Link
         to={backPath}
-        className="inline-flex items-center gap-1.5 text-label-md text-primary hover:underline mb-8"
+        className="checkout-back inline-flex items-center gap-1.5 text-label-md text-primary hover:underline mb-8"
       >
         <Icon name="arrow_back" size={16} className="text-primary" />
         Back to Guidebook
@@ -93,7 +93,7 @@ export default function Checkout() {
             {checklistItems.map((item, i) => (
               <label
                 key={i}
-                className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                className={`checkout-item flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all ${
                   checked[i]
                     ? 'bg-secondary-container/30 border border-secondary/20'
                     : 'border border-outline-variant/20 hover:bg-surface-container'
@@ -101,13 +101,13 @@ export default function Checkout() {
               >
                 <div
                   onClick={() => toggle(i)}
-                  className={`w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                  className={`checkout-checkbox w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
                     checked[i] ? 'bg-primary border-primary' : 'border-outline-variant'
                   }`}
                 >
-                  {checked[i] && <Icon name="check" size={13} className="text-white" />}
+                  {checked[i] && <Icon name="check" size={13} className="checkout-checkbox-icon text-white" />}
                 </div>
-                <span className={`text-body-md leading-snug ${checked[i] ? 'text-on-surface-variant line-through' : 'text-on-surface'}`}>
+                <span className={`checkout-item-text text-body-md leading-snug ${checked[i] ? 'text-on-surface-variant line-through' : 'text-on-surface'}`}>
                   {item}
                 </span>
               </label>
@@ -115,7 +115,7 @@ export default function Checkout() {
           </div>
 
           {allChecked && (
-            <div className="mt-5 bg-primary text-white rounded-xl px-5 py-5 text-center">
+            <div className="checkout-all-done mt-5 bg-primary text-white rounded-xl px-5 py-5 text-center">
               <Icon name="check_circle" size={28} className="text-white mx-auto mb-1" />
               <p className="font-bold text-label-lg">All done — safe travels!</p>
               <p className="text-white/80 text-label-md mt-0.5">Thank you for staying with TALO Rentals.</p>
@@ -149,7 +149,7 @@ export default function Checkout() {
       ))}
 
       {/* Contact */}
-      <div className="mt-8 bg-surface-container rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
+      <div className="checkout-contact mt-8 bg-surface-container rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="font-semibold text-on-surface">{property.ownerName}</p>
           <p className="text-on-surface-variant text-label-md">Your host</p>

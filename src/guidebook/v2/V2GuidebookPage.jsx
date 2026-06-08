@@ -629,12 +629,16 @@ export default function V2GuidebookPage() {
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }} />
+          {/* Print-only hero image — background-image doesn't print, this does */}
+          <img src={t.HERO_IMG} alt="" aria-hidden="true"
+            className="print-hero-img"
+            style={{ display: 'none', position: 'absolute', inset: 0 }} />
         </div>
 
         {/* Night/Day toggle button — top right */}
         <button
           onClick={toggleNightMode}
-          className="absolute top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all hover:opacity-90"
+          className="no-print absolute top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all hover:opacity-90"
           style={{
             background: nightMode ? 'rgba(129,140,248,0.25)' : 'rgba(0,0,0,0.22)',
             border: nightMode ? '1px solid rgba(129,140,248,0.5)' : '1px solid rgba(255,255,255,0.40)',
@@ -677,7 +681,8 @@ export default function V2GuidebookPage() {
       </div>
 
       {/* ── Mobile TOC ── */}
-      <div className="md:hidden sticky top-0 z-40 backdrop-blur-md border-b px-4 py-2"
+      {/* no-print applied below */}
+      <div className="no-print md:hidden sticky top-0 z-40 backdrop-blur-md border-b px-4 py-2"
         style={{ background: nightMode ? 'rgba(11,17,32,0.95)' : 'rgba(255,247,237,0.95)', borderColor: t.BORDER }}>
         <button onClick={() => setTocOpen(!tocOpen)}
           className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-label-md font-semibold"
@@ -780,12 +785,54 @@ export default function V2GuidebookPage() {
         </div>
       </div>
 
+      {/* ── Tablet property card (md only — desktop has right sidebar, mobile has its own bar) ── */}
+      <div className="no-print hidden md:block lg:hidden px-4 md:px-6 pt-4 pb-0">
+        <div className="rounded-2xl border p-4 shadow-sm" style={{ borderColor: t.BORDER, background: t.CARD }}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            {/* Name + address */}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: t.PRIMARY }}>Property</p>
+              <p className="font-bold text-[14px] leading-tight" style={{ color: t.TEXT }}>{property.name}</p>
+              <p className="text-[12px] mt-0.5" style={{ color: t.MUTED }}>{property.address}</p>
+            </div>
+            {/* Times + guests */}
+            <div className="flex gap-5 text-[12px] flex-shrink-0">
+              <div>
+                <p style={{ color: t.MUTED }}>Check-in</p>
+                <p className="font-bold" style={{ color: t.TEXT }}>{property.checkInTime}</p>
+              </div>
+              <div>
+                <p style={{ color: t.MUTED }}>Check-out</p>
+                <p className="font-bold" style={{ color: t.TEXT }}>{property.checkoutTime}</p>
+              </div>
+              <div>
+                <p style={{ color: t.MUTED }}>Guests</p>
+                <p className="font-bold" style={{ color: t.TEXT }}>Up to {property.maxGuests}</p>
+              </div>
+            </div>
+            {/* Action buttons */}
+            <div className="flex gap-2 flex-shrink-0">
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-opacity hover:opacity-80"
+                style={{ background: `${t.PRIMARY}18`, color: t.PRIMARY }}>
+                <Icon name="map" size={13} /> Map
+              </a>
+              <Link to={`/v2/${slug}/checkout`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
+                style={{ background: t.SUNSET }}>
+                <Icon name="checklist" size={13} /> Check-Out
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Three-column layout ── */}
       <div className="px-4 md:px-6 lg:px-10 xl:px-16 py-6">
         <div className="flex gap-5 lg:gap-7 items-start">
 
           {/* Left TOC (desktop) */}
-          <aside className="hidden md:block w-48 lg:w-56 flex-shrink-0 sticky top-4 self-start">
+          <aside className="no-print hidden md:block w-48 lg:w-56 flex-shrink-0 sticky top-4 self-start">
             <p className="text-[10px] font-bold uppercase tracking-widest mb-3 px-2" style={{ color: t.MUTED }}>Contents</p>
             <nav className="space-y-0.5">
               {topLevelSections.map((s) => (
@@ -832,7 +879,7 @@ export default function V2GuidebookPage() {
           </aside>
 
           {/* Center content */}
-          <main className="flex-1 min-w-0">
+          <main className="flex-1 min-w-0 print-full-width">
             {MAIN_SECTIONS.filter((s) => !s.parentKey).map(renderSection)}
 
             {/* Checkout CTA */}
@@ -851,7 +898,7 @@ export default function V2GuidebookPage() {
           </main>
 
           {/* Right sidebar (large screens) */}
-          <div className="hidden lg:block w-56 xl:w-64 flex-shrink-0 sticky top-4 self-start">
+          <div className="no-print hidden lg:block w-56 xl:w-64 flex-shrink-0 sticky top-4 self-start">
             <V2RightSidebar property={property} slug={slug} mapsUrl={mapsUrl} />
           </div>
 

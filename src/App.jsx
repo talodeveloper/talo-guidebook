@@ -10,6 +10,7 @@ import Checkout from './guidebook/Checkout'
 import V2GuidebookLayout from './guidebook/v2/V2GuidebookLayout'
 import V2GuidebookPage from './guidebook/v2/V2GuidebookPage'
 import V2FAQPage from './guidebook/v2/V2FAQPage'
+import V2PrintPage from './guidebook/v2/V2PrintPage'
 
 // Admin
 import Login from './admin/Login'
@@ -62,6 +63,7 @@ export default function App() {
           <Route index element={<V2GuidebookPage />} />
           <Route path="faq" element={<V2FAQPage />} />
           <Route path="checkout" element={<Checkout />} />
+          <Route path="print" element={<V2PrintPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin" replace />} />

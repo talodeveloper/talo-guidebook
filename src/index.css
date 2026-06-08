@@ -42,3 +42,63 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
+
+/* ─── Print styles ─────────────────────────────────────────────────────────── */
+@media print {
+  /* ── Universal ── */
+  .no-print { display: none !important; }
+  body, #root { background: #fff !important; }
+  a[href]:after { content: none; }
+
+  /* ── Main guidebook page ── */
+  #local_guide,
+  #things_to_do { display: none !important; }
+  .print-full-width {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+  section, .py-8 { page-break-inside: avoid; }
+  /* Show the hero <img> that is hidden on screen */
+  .print-hero-img {
+    display: block !important;
+    width: 100% !important;
+    height: 200px !important;
+    object-fit: cover !important;
+  }
+
+  /* ── FAQ page ── */
+  /* Force all answers visible regardless of open/closed state */
+  .faq-answer { display: block !important; }
+  /* Hide the expand/collapse chevron */
+  .faq-chevron { display: none !important; }
+  /* Remove hover/interactive styling from question button */
+  .faq-question-btn { pointer-events: none; cursor: default; }
+  /* Hide header back-link and contact buttons */
+  .faq-page-header { display: none !important; }
+  .faq-contact-btns { display: none !important; }
+  .faq-back-link { display: none !important; }
+  /* Hide left TOC and right sidebar */
+  .faq-left-toc { display: none !important; }
+  .faq-right-sidebar { display: none !important; }
+
+  /* ── Checkout page ── */
+  .checkout-back { display: none !important; }
+  /* Show checklist items as static printed boxes */
+  .checkout-item {
+    border: 1px solid #E5E7EB !important;
+    background: transparent !important;
+  }
+  .checkout-checkbox {
+    background: transparent !important;
+    border-color: #9CA3AF !important;
+  }
+  .checkout-checkbox-icon { display: none !important; }
+  .checkout-item-text {
+    text-decoration: none !important;
+    color: #374151 !important;
+  }
+  /* Hide the "all done" celebration and post-checkout CTA */
+  .checkout-all-done { display: none !important; }
+  .checkout-contact { display: none !important; }
+}

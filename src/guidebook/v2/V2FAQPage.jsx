@@ -38,7 +38,7 @@ function FAQItem({ item, index, open, onToggle, nightMode, cardBg, cardBorder, p
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: `1px solid ${cardBorder}`, background: cardBg }}>
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left transition-colors"
+        className="faq-question-btn w-full flex items-center justify-between gap-3 px-5 py-4 text-left transition-colors"
         style={{ background: open ? hoverBg : 'transparent' }}
         onMouseEnter={e => e.currentTarget.style.background = hoverBg}
         onMouseLeave={e => e.currentTarget.style.background = open ? hoverBg : 'transparent'}
@@ -50,13 +50,13 @@ function FAQItem({ item, index, open, onToggle, nightMode, cardBg, cardBorder, p
           </span>
           <span className="font-semibold text-[14px] leading-snug pr-2" style={{ color: textColor }}>{item.q}</span>
         </div>
-        <Icon name={open ? 'expand_less' : 'expand_more'} size={20} style={{ color: primary, flexShrink: 0 }} />
+        <Icon name={open ? 'expand_less' : 'expand_more'} size={20}
+          className="faq-chevron" style={{ color: primary, flexShrink: 0 }} />
       </button>
-      {open && (
-        <div className="px-5 pb-4 pt-1" style={{ borderTop: `1px solid ${dividerColor}` }}>
-          <p className="text-[14px] leading-relaxed pl-10" style={{ color: mutedColor }}>{item.a}</p>
-        </div>
-      )}
+      {/* Answer — always in DOM, hidden via CSS when closed; print forces visible */}
+      <div className="faq-answer" style={{ display: open ? 'block' : 'none', borderTop: `1px solid ${dividerColor}` }}>
+        <p className="px-5 pb-4 pt-1 text-[14px] leading-relaxed pl-10" style={{ color: mutedColor }}>{item.a}</p>
+      </div>
     </div>
   )
 }
@@ -91,7 +91,7 @@ export default function V2FAQPage() {
             background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 50%, transparent 100%)'
           }} />
           <div className="absolute top-0 left-0 right-0 h-px bg-white/25" />
-          <div className="relative z-10 px-6 py-4 flex items-center justify-between">
+          <div className="faq-page-header relative z-10 px-6 py-4 flex items-center justify-between">
             <Link
               to={`/v2/${slug}`}
               className="flex items-center gap-2 text-white/80 hover:text-white transition-colors text-[13px] font-semibold"
@@ -108,7 +108,7 @@ export default function V2FAQPage() {
           <div className="flex gap-5 lg:gap-7 items-start">
 
             {/* Left TOC (desktop) */}
-            <aside className="hidden md:block w-48 lg:w-56 flex-shrink-0 sticky top-4 self-start">
+            <aside className="faq-left-toc hidden md:block w-48 lg:w-56 flex-shrink-0 sticky top-4 self-start">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-3 px-2" style={{ color: mutedColor }}>Contents</p>
               <nav className="space-y-0.5">
                 {topLevelSections.map((s) => (
@@ -170,7 +170,7 @@ export default function V2FAQPage() {
                   </div>
                 </div>
                 {/* Contact buttons */}
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="faq-contact-btns flex gap-2 flex-shrink-0">
                   <a href="tel:+16082393574"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm"
                     style={{ background: nightMode ? 'linear-gradient(135deg, #4338CA, #6D28D9)' : 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
@@ -204,7 +204,7 @@ export default function V2FAQPage() {
               </div>
 
               {/* Back link */}
-              <div className="mt-8">
+              <div className="faq-back-link mt-8">
                 <Link to={`/v2/${slug}`}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
                   style={{ color: primary }}>
@@ -214,7 +214,7 @@ export default function V2FAQPage() {
             </main>
 
             {/* Right sidebar (large screens) */}
-            <div className="hidden lg:block w-56 xl:w-64 flex-shrink-0 sticky top-4 self-start">
+            <div className="faq-right-sidebar hidden lg:block w-56 xl:w-64 flex-shrink-0 sticky top-4 self-start">
               <V2RightSidebar property={property} slug={slug} mapsUrl={mapsUrl} />
             </div>
 
