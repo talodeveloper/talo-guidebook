@@ -1,11 +1,16 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: End of Session 4**
-> Session 1 — Built full V2 UI (approved)
+> **Last updated: End of Session 9**
+> Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
 > Session 4 — GitHub Pages deployment, image fixes, print CSS, tablet card
-> Everything below is confirmed, saved to disk, deployed to GitHub Pages, and working.
+> Session 5 — Admin Panel V2 built from scratch
+> Session 6 — WYSIWYG body editor, list reorder, new credentials, deployed
+> Session 7 — V3 Admin Panel + V3 Guidebook with Activity Center (local only, not deployed)
+> Session 8 — Firebase Firestore backend, Check-In page, Check-Out form, admin records, blue UI, property info reorder
+> Session 9 — Stay-aware checkout matching, Guest Database admin page, host phone visible, form validation, Call/Text label
+> Everything below is confirmed and saved to disk.
 
 ---
 
@@ -13,72 +18,157 @@
 
 **What it is:** React SPA guest guidebook for TALO Rentals (San Diego short-term rentals, owner: Joe Saari). Digital house manual for 4 properties.
 
-**Tech stack:** React 19 · React Router v7 · Vite 8 (port `5175`, `strictPort: true`) · Tailwind CSS v3 · No backend — all data in JS files + localStorage
+**Tech stack:** React 19 · React Router v7 · Vite 8 (port `5175`, `strictPort: true`) · Tailwind CSS v3 · Firebase Firestore (real-time backend for V2)
 
 **Dev server:** `npm run dev` → `http://localhost:5175`
 
-**V2 guidebook URLs (local):**
-| Property | URL |
-|---|---|
-| Reynard Way | http://localhost:5175/v2/reynard-way |
-| Hawk Street | http://localhost:5175/v2/hawk-street |
-| Jackson Street | http://localhost:5175/v2/jackson-st |
-| Vista Pointe | http://localhost:5175/v2/vista-pointe |
-
-**Live GitHub Pages URLs:**
-| Property | URL |
-|---|---|
-| Reynard Way | https://talodeveloper.github.io/talo-guidebook/v2/reynard-way |
-| Hawk Street | https://talodeveloper.github.io/talo-guidebook/v2/hawk-street |
-| Jackson Street | https://talodeveloper.github.io/talo-guidebook/v2/jackson-st |
-| Vista Pointe | https://talodeveloper.github.io/talo-guidebook/v2/vista-pointe |
-
-> ⛔ **V1** lives at `/:slug` — **NEVER TOUCH IT.**
+**Owner / Host:** Joe Saari · `saari.joseph@gmail.com` · `+1 (608) 239-3574`
 
 ---
 
-## 2. Status
+## 2. Version Architecture — Critical Overview
 
-### ✅ Done
-- Full V2 UI (terracotta day / indigo-purple night, 3-col layout, flip cards, FAQ, checkout, night mode toggle)
-- Vista Pointe — all photos mapped ✅
-- Jackson Street — all photos mapped ✅
-- Local Guide & Things To Do — real photos (all previously-Unsplash images now self-hosted in `public/images/local/`)
-- Checkout page — post-checkout CTA linking to `https://talo.rentals/`
-- localStorage key → **`talo_content_blocks_v8`**
-- GitHub Pages deployed at `https://talodeveloper.github.io/talo-guidebook/`
-- Hero image: `newhero.png` (day) — cropped to same aspect ratio as `nightview.png`
-- Jackson Street parking photo: `parking.avif`
-- Print/PDF support: Ctrl+P on main, FAQ, and Checkout pages all work cleanly
-- Tablet view: property detail card shows between hero and content on md screens
+There are **3 separate version layers**. NEVER mix them up.
 
-### 🔲 Remaining (in order)
-1. **Photo mapping — Reynard Way** (Joe opens Airbnb listing in Chrome, shares URL → follow Section 8)
+| Version | Route | Admin | Status |
+|---|---|---|---|
+| V1 | `/:slug` | `/admin` | ⛔ NEVER TOUCH — preserved as-is |
+| V2 | `/v2/:slug` | `/admin-v2` | ✅ Live on GitHub Pages |
+| V3 | `/v3/:slug` | `/admin-v3` | 🔲 Local only — not deployed yet |
+
+**Login credentials (all three admins):** `joe@talo.ventures` / `Mytalo@2026`
+
+---
+
+## 3. Current Status
+
+### ✅ V2 — Fully Live & Deployed
+
+**Live URL:** `https://talodeveloper.github.io/talo-guidebook/`
+
+- Full V2 guidebook UI: terracotta day / indigo-purple night, 3-col layout, flip cards, FAQ, checkout, night mode
+- Vista Pointe ✅ and Jackson Street ✅ — photos mapped
+- Reynard Way 🔲 and Hawk Street 🔲 — still need photo mapping (see Section 8)
+- Admin Panel V2: Draft/Publish workflow, WYSIWYG editor, reorder blocks/list items, all 4 properties, FAQ, Global Content (house rules)
+- **Firebase Firestore backend** — content syncs globally; all devices see admin changes after Publish
+- localStorage key: `talo_admin_v2_draft` / `talo_admin_v2_live` (used as fallback)
+- Guidebook reads from: Firestore (highest priority) → localStorage → `contentStore.js`
+
+#### Session 8 V2 additions
+
+**Firebase / Backend**
+- `src/firebase.js` — Firebase app init + Firestore export
+- `src/data/firebaseSync.js` — `onSnapshot` listeners for `v2_content/blocks`, `v2_content/properties`, `v2_content/faq`
+- Admin Publish pushes to Firestore so all devices update in real-time
+- `v2_checkins` Firestore collection — guest check-in form submissions
+- `v2_checkouts` Firestore collection — guest checkout form submissions (or admin manual checkout)
+
+**Guidebook**
+- Check In button color → **blue** everywhere (right sidebar, inline card, left TOC, mobile TOC, check-in page header icon)
+- Email/Phone buttons in Host card + Checkout contact — **hidden if field is empty**
+- V2 checkout page — Sign-Out form after checklist (Primary Booker Name + Your Name); saves to `v2_checkouts`
+
+**Admin panel**
+- Property Info field order now matches guidebook: Details → WiFi → Host → Check-In Page
+- Host email hint: "Leave blank to hide Email button from guests"
+- **Check-In Page card** — editable welcome message per property (stored in `properties[slug].checkInWelcome`)
+- **Unpublished Changes dropdown** — click "Unpublished changes" text to see list: "House Rules — Reynard Way", etc.
+- **Publish button always visible** — greyed out when nothing to publish; Discard button only appears when there are changes
+- **Check-In Records** (`/admin-v2/checkins`) — delete individual guest records (hover to reveal); Mark as Checked Out button per primary booker group; filters out checked-out groups
+- **Checked Out** (`/admin-v2/checkouts`) — NEW page; shows groups that checked out (by form or admin); guest roster below each group; Restore button to undo; Download CSV
+
+**V2 Check-In page** (`/v2/:slug/checkin`)
+- Header icon is now blue
+- Welcome message reads from `property.checkInWelcome` (editable in admin Property Info → Check-In Page card)
+- Firestore `v2_checkins` write on form submit
+
+#### Firebase rules reminder
+Test mode expires 30 days from database creation. Update rules in Firebase console:
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /v2_content/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /v2_checkins/{doc} {
+      allow read, write: if true;
+    }
+    match /v2_checkouts/{doc} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+**Important:** First time using the live admin, Joe must click Publish once to seed Firestore with all current content.
+
+#### Session 9 V2 additions
+
+**Guidebook**
+- Host card right sidebar shows phone number as plain text (`select-all` for easy copy) next to Joe's name + the Call / Text button
+- All "Call" labels → **"Call / Text"** (right sidebar Host card + Checkout contact)
+
+**Check-In page — input validation**
+- Phone: regex `/^[+]?[\d\s\-().]{7,15}$/` — accepts only digits, spaces, `+`, `-`, `()`. Inline red error on invalid format
+- Email: regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`. Inline red border + error on invalid format
+- Phone marked "(optional)"; submit blocked until all required fields pass validation
+
+**Admin — stay-aware checkout matching**
+- A checkout record only "hides" a check-in group from active records if checkout timestamp > latest check-in timestamp for that booker+property
+- Fixes: if a new guest checks in with the same primary booker name as an old guest who already checked out, the new booking now correctly appears in active records (not auto-marked as checked-out)
+- Same logic applied to Checkouts page roster — only shows check-ins that happened BEFORE that checkout
+
+**Admin — composite grouping key (Session 9.1)**
+- Check-In Records groups guests by `primaryGuestName + propertySlug` (not name alone)
+- Fixes: two different bookings with the same primary booker name across different properties (e.g. a "Joe" at Jackson and a "Joe" at Hawk Street) now appear as separate groups in the "All Properties" view instead of being merged into one
+
+**Admin — NEW Guest Database page** (`/admin-v2/guest-database`)
+- Flat tabular list of every check-in submission (excludes primary booker name — for email marketing)
+- Columns: Name · Email · Phone · Property · Checked-In Date · Checked-Out Date
+- Sorted newest first; live-updating from Firestore
+- "Currently in" badge if no checkout yet; otherwise shows checkout date in green
+- Search box (name / email / phone) + property filter chips
+- Download CSV button (respects current filters)
+- Available in sidebar under "Guest Records" group: Check-In Records · Checked Out · Guest Database
+
+### 🔲 V3 — Local Only (not on GitHub Pages)
+
+- V3 Admin at `/admin-v3` — fully built, login works
+- V3 Guidebook at `/v3/:slug` — fully built
+- localStorage keys: `talo_admin_v3_draft` / `talo_admin_v3_live` / `talo_admin_v3_auth`
+- Guidebook reads from `talo_admin_v3_live`, falls back to `talo_admin_v3_draft`
+- **36 activities seeded** in the global repository with real images from `public/images/local/`
+- **Not deployed to GitHub Pages** — to deploy, run `npm run deploy` (will deploy V3 routes automatically since they're in the same SPA)
+
+### 🔲 Remaining Work (all versions)
+
+1. **Photo mapping — Reynard Way** (follow Section 8)
 2. **Photo mapping — Hawk Street** (same process)
-3. **Admin panel** — confirm with Joe whether `/admin` should be accessible in production
+3. **V3 admin: Publish** the draft so live guidebook shows activities
+4. **Supabase backend** — needed for: image uploads, hero image per property
 
 ---
 
-## 3. File Structure
+## 4. File Structure
 
 ```
 talo-guidebook/
 ├── public/
 │   ├── images/
-│   │   ├── beach-hero.png          ← Old day hero (kept for reference)
-│   │   ├── newhero.png             ← Current day hero (2172×388, cropped)
+│   │   ├── newhero.png             ← Day hero (2172×388)
 │   │   ├── nightview.png           ← Night hero (2172×388)
-│   │   ├── talo-logo.png           ← Logo
-│   │   └── local/                  ← All local guide + things-to-do photos
-│   │       starbucks.png · genteel-coffee.jpg · target.jpg · sprouts.jpg
-│   │       ralphs.jpg · moes-coffee.jpg · paddle.jpg · fashion-valley.jpg
-│   │       palm-canyon.jpg · everyday-california.jpg · disco-paddle.jpg
-│   │       marston-point.jpg · balboa-park-golf.jpg · coronado-island.jpg
-│   │       chula-vista-bayfront.jpg · downtown-san-diego.jpg · vons-grocery.jpg
-│   │       border-field.jpg · snooty-fox.jpg · la-bella-pizza.jpg
-│   │       sail-san-diego.jpg · mission-bay-sport.jpg · aqua-adventures.jpg
-│   │       kayak-la-jolla.jpg · loma-club.jpg · balboa-park.jpg
-│   │       sweetwater-summit.jpg · olympic-training.jpg · sd-oasis.jpg · old-town-sd.jpg
+│   │   ├── talo-logo.png
+│   │   └── local/                  ← All Activity Center photos + local guide
+│   │       (30 files: starbucks.png, genteel-coffee.jpg, moes-coffee.jpg,
+│   │        la-bella-pizza.jpg, snooty-fox.jpg, aqua-adventures.jpg,
+│   │        kayak-la-jolla.jpg, paddle.jpg, palm-canyon.jpg, marston-point.jpg,
+│   │        sail-san-diego.jpg, mission-bay-sport.jpg, balboa-park-golf.jpg,
+│   │        loma-club.jpg, coronado-island.jpg, sweetwater-summit.jpg,
+│   │        border-field.jpg, olympic-training.jpg, disco-paddle.jpg,
+│   │        fashion-valley.jpg, balboa-park.jpg, old-town-sd.jpg, target.jpg,
+│   │        vons-grocery.jpg, sprouts.jpg, ralphs.jpg, chula-vista-bayfront.jpg,
+│   │        sd-oasis.jpg, downtown-san-diego.jpg, everyday-california.jpg)
 │   └── photos/
 │       ├── reynard-way/            ← 🔲 Still needs photo mapping
 │       ├── hawk-street/            ← 🔲 Still needs photo mapping
@@ -86,77 +176,86 @@ talo-guidebook/
 │       └── vista-pointe/           ← ✅ 82 files, UUID-named .jpeg
 │
 ├── src/
-│   ├── App.jsx                     ← Router (V1 at /:slug, V2 at /v2/:slug)
+│   ├── App.jsx                     ← Router (V1/V2/V3 guidebooks + all 3 admins)
+│   ├── firebase.js                 ← Firebase app init + db export (Firestore)
 │   ├── data/
-│   │   ├── properties.js           ← 4 property configs
-│   │   ├── contentStore.js         ← ★ STORAGE_KEY = 'talo_content_blocks_v8'
-│   │   ├── sections.js             ← Section key/label/icon definitions
+│   │   ├── properties.js           ← 4 property configs (static)
+│   │   ├── contentStore.js         ← STORAGE_KEY = 'talo_content_blocks_v8'
+│   │   ├── sections.js             ← Section key/label/icon (used by V2 admin)
 │   │   ├── faqData.js              ← FAQ Q&A per property slug
-│   │   └── adminStore.js           ← Admin only — DO NOT TOUCH
-│   ├── components/Icon.jsx         ← Google Material Icons wrapper
+│   │   ├── adminStore.js           ← V1 admin store (DO NOT TOUCH)
+│   │   ├── adminV2Store.js         ← V2 admin store (draft/publish, getChangeSummary)
+│   │   ├── adminV3Store.js         ← V3 admin store (activities, curation, property mgmt)
+│   │   └── firebaseSync.js         ← onSnapshot listeners; exports getPropertyOverrides, subscribeProperties, getFaqOverrides, subscribeFaq
+│   ├── components/
+│   │   ├── Icon.jsx                ← Google Material Icons wrapper
+│   │   └── RichTextEditor.jsx
+│   ├── admin/                      ← V1 admin (DO NOT TOUCH)
+│   ├── admin-v2/                   ← V2 admin
+│   │   ├── Layout.jsx              ← Sidebar + header (Publish/Discard/dropdown/Checkouts link)
+│   │   ├── Login.jsx
+│   │   ├── components/BodyEditor.jsx
+│   │   └── pages/
+│   │       Dashboard.jsx · FAQEditor.jsx · GlobalContent.jsx
+│   │       PropertyHome.jsx · PropertyInfo.jsx · SectionEditor.jsx
+│   │       CheckIns.jsx (active guests) · Checkouts.jsx (checked-out groups)
+│   │       GuestDatabase.jsx (flat tabular view + CSV for email marketing)
+│   ├── admin-v3/                   ← V3 admin (NEW in Session 7)
+│   │   ├── Layout.jsx
+│   │   ├── Login.jsx
+│   │   ├── components/BodyEditor.jsx (copy of v2)
+│   │   └── pages/
+│   │       Dashboard.jsx · FAQEditor.jsx · GlobalContent.jsx
+│   │       GlobalActivities.jsx · PropertyActivities.jsx
+│   │       PropertyHome.jsx · PropertyInfo.jsx · SectionEditor.jsx
+│   │       AddProperty.jsx
 │   └── guidebook/
-│       ├── Checkout.jsx            ← Shared by V1 + V2 (has print CSS hooks)
-│       ├── GuidebookLayout.jsx     ← V1 — DO NOT EDIT
-│       ├── GuidebookPage.jsx       ← V1 — DO NOT EDIT
+│       ├── Checkout.jsx            ← Shared by V1+V2+V3
+│       ├── GuidebookLayout.jsx     ← V1 (DO NOT TOUCH)
+│       ├── GuidebookPage.jsx       ← V1 (DO NOT TOUCH)
 │       └── v2/
-│           ├── V2GuidebookLayout.jsx  ← Owns nightMode state
-│           ├── V2GuidebookPage.jsx    ← Main V2 page
-│           ├── V2FAQPage.jsx          ← FAQ page (has print CSS hooks)
-│           └── V2PrintPage.jsx        ← Standby print page at /v2/:slug/print
-├── vite.config.js                  ← base: '/talo-guidebook/' for production only
-├── .claude/launch.json             ← Dev server config (port 5175)
-└── Handoff.md                      ← This file
+│       │   ├── V2GuidebookLayout.jsx
+│       │   ├── V2GuidebookPage.jsx   (exports NightModeCtx, V2RightSidebar)
+│       │   ├── V2FAQPage.jsx
+│       │   ├── V2PrintPage.jsx
+│       │   └── V2CheckInPage.jsx     (house rules checklist + form → v2_checkins Firestore)
+│       └── v3/                     ← NEW in Session 7
+│           ├── V3GuidebookLayout.jsx
+│           ├── V3GuidebookPage.jsx   (exports NightModeCtx, V3RightSidebar)
+│           └── V3FAQPage.jsx
 ```
 
 ---
 
-## 4. Key Architecture & Design Decisions
+## 5. V2 Guidebook — Full Detail
 
-### 4.1 Hero Section
+### URLs
+| Property | Local | Live |
+|---|---|---|
+| Reynard Way | http://localhost:5175/v2/reynard-way | https://talodeveloper.github.io/talo-guidebook/v2/reynard-way |
+| Hawk Street | http://localhost:5175/v2/hawk-street | https://talodeveloper.github.io/talo-guidebook/v2/hawk-street |
+| Jackson Street | http://localhost:5175/v2/jackson-st | https://talodeveloper.github.io/talo-guidebook/v2/jackson-st |
+| Vista Pointe | http://localhost:5175/v2/vista-pointe | https://talodeveloper.github.io/talo-guidebook/v2/vista-pointe |
 
-```jsx
-// Outer div — NO overflow:hidden (logo intentionally floats above)
-<div className="relative w-full" style={{
-  height: 'clamp(170px, 20vw, 260px)',
-  backgroundColor: nightMode ? '#0B1120' : '#FFF7ED',
-}}>
-  {/* Background clips inside nested div */}
-  <div className="absolute inset-0 overflow-hidden">
-    <div className="absolute inset-0" style={{
-      backgroundImage: `url(${t.HERO_IMG})`,   // switches day/night
-      backgroundSize: 'cover', backgroundPosition: 'center',
-    }} />
-    {/* Print-only img — background-image doesn't print */}
-    <img src={t.HERO_IMG} className="print-hero-img" style={{ display:'none' }} />
-  </div>
-  ...
-```
+### V2 Active Sections (in order)
+`welcome` · `entry` · `parking` · `wifi` · `house_rules` · `the_home` · `additional_space` · `outdoor_spaces` · `services_maintenance` · `videos` · `local_guide` · `things_to_do` · `transport` · `checkout`
 
-**Hero images:**
-- Day: `/images/newhero.png` (2172×388)
-- Night: `/images/nightview.png` (2172×388)
+### V2 Content Data Flow
+1. `contentStore.js` — hardcoded fallback blocks (key: `talo_content_blocks_v8`)
+2. V2 admin draft → `talo_admin_v2_draft` in localStorage
+3. V2 admin publish → `talo_admin_v2_live` in localStorage
+4. Guidebook reads: `talo_admin_v2_live` first, then `contentStore.js`
 
----
+### V2 Admin Panel — `/admin-v2`
+- **Login:** joe@talo.ventures / Mytalo@2026
+- **Draft/Publish workflow:** Publish button → makes changes live instantly
+- **Sections:** WYSIWYG body editor (paragraphs = rich text B/I/U/size, lists = individual item boxes)
+- **Reorder:** ↑↓ on list items within block AND ↑↓ on blocks within section
+- **Global Content:** shared house rules (affect all 4 properties)
+- **Property Info:** WiFi, host, address, check-in/out, max guests
+- **Core blocks locked** (🔒 no delete); admin-added blocks are deletable
 
-### 4.2 Night Mode Architecture
-
-State lives in **`V2GuidebookLayout.jsx`**, persisted to `localStorage('talo_night_mode')`.
-
-```jsx
-<Outlet context={{ property: activeProperty, nightMode, toggleNightMode }} />
-const { property, nightMode, toggleNightMode } = useOutletContext()
-```
-
-Theme propagates inside `V2GuidebookPage.jsx` via React Context:
-```jsx
-export const NightModeCtx = React.createContext(false)  // EXPORTED
-```
-
-`NightModeCtx` + `V2RightSidebar` are **exported** from `V2GuidebookPage.jsx` so `V2FAQPage.jsx` can import them.
-
----
-
-### 4.3 Themes at a Glance
+### V2 Design Tokens
 
 **Day palette:**
 ```
@@ -172,111 +271,129 @@ N_OCEAN   = linear-gradient(135deg, #0B1120 → #0C2550 → #1E3A8A)
 BG=#0B1120  CARD=#111827  PRIMARY=#818CF8  TEXT=#E2E8F0  MUTED=#94A3B8  BORDER=rgba(99,102,241,0.20)
 ```
 
----
-
-### 4.4 Critical Rules (Don't Break These)
-
-1. **Never use Tailwind `divide-y`** in sections — hard-codes a white border in night mode.
-
-2. **`Checkout.jsx` back-button** uses `useLocation()` to detect V1 vs V2:
-   ```jsx
-   const isV2 = location.pathname.startsWith('/v2/')
-   ```
-
-3. **`V2RightSidebar`** requires `mapsUrl` prop — always pass it.
-
-4. **localStorage key** — bump it (`v8` → `v9`) whenever you make bulk content changes in `contentStore.js`.
-
-5. **`BlockImages` component** uses `object-cover` with `maxHeight`. Do NOT change to `object-contain`.
-
-6. **`imgUrl()` helper** — ALL image paths in V2GuidebookPage must go through this:
+### V2 Critical Rules
+1. **Never use Tailwind `divide-y`** — hard-codes white border in night mode
+2. **`Checkout.jsx` back-button** uses `useLocation()` to detect V1 vs V2 (`isV2 = location.pathname.startsWith('/v2/')`) — V3 checkout uses the same component, detects `/v3/` in the same way (already handled)
+3. **`imgUrl()` helper** — ALL image paths in V2GuidebookPage must go through this:
    ```js
    const imgUrl = (path) => path ? `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}` : path
    ```
-   This is defined at module level in `V2GuidebookPage.jsx` and also in `V2PrintPage.jsx`.
+4. **`BlockImages` component** uses `object-cover` with `maxHeight` — do NOT change to `object-contain`
+5. **localStorage key** — bump (`v8` → `v9`) if making bulk changes to `contentStore.js`
 
----
-
-### 4.5 Routing
-
-```jsx
-// V1 (never touch)
-<Route path="/:slug" element={<GuidebookLayout />}>
-  <Route index element={<GuidebookPage />} />
-  <Route path="checkout" element={<Checkout />} />
-</Route>
-
-// V2 (active)
-<Route path="/v2/:slug" element={<V2GuidebookLayout />}>
-  <Route index element={<V2GuidebookPage />} />
-  <Route path="faq" element={<V2FAQPage />} />
-  <Route path="checkout" element={<Checkout />} />
-  <Route path="print" element={<V2PrintPage />} />   ← standby, not linked
-</Route>
-```
-
-**BrowserRouter basename** is set to `import.meta.env.BASE_URL` so it works on both localhost (base=`/`) and GitHub Pages (base=`/talo-guidebook/`).
-
----
-
-### 4.6 Vite Config
-
-```js
-export default defineConfig(({ command }) => ({
-  plugins: [react()],
-  base: command === 'build' ? '/talo-guidebook/' : '/',
-  server: { port: 5175, strictPort: true },
-}))
-```
-`base` is `/talo-guidebook/` only during `npm run build` — dev server stays at `/`.
-
----
-
-### 4.7 ContentStore Block Schema
-
-```js
-{
-  id: 'unique-id',
-  sectionKey: 'parking',
-  type: 'shared' | 'property',
-  propertySlug: null | 'jackson-st',
-  title: 'Section Title',
-  body: `<p>HTML string</p>`,
-  images: [{ src: '/photos/jackson-st/uuid.jpeg', caption: 'Caption' }],
-  order: 1,
-  phone: '+1...',   // optional
-  link: 'https://', // optional
-}
-```
-
-**Sections active in V2:** `welcome`, `entry`, `parking`, `wifi`, `house_rules`, `the_home`, `additional_space`, `outdoor_spaces`, `services_maintenance`, `local_guide`, `things_to_do`, `transport`
-
----
-
-### 4.8 Print / PDF Support
-
-**How it works:**
-- `Ctrl+P` on **any** of the three pages produces a clean PDF
-- CSS class `no-print` → hidden in print (toggle button, sidebars, mobile TOC)
+### V2 Print/PDF Support
+- `Ctrl+P` on main page, FAQ, or Checkout → clean PDF
+- `no-print` class → hidden in print
 - `#local_guide`, `#things_to_do` → hidden in print
-- `print-hero-img` → hidden on screen, shown in print (fixes background-image not printing)
+- `print-hero-img` → hidden on screen, shown in print
 - `print-full-width` → main content goes full width in print
-
-**FAQ page print:** All accordion answers are always in the DOM (hidden via `display:none` CSS, not conditional render). `@media print` forces `.faq-answer { display: block }` so all Q&As expand automatically.
-
-**Checkout page print:** Checkboxes show as empty printable boxes; checked state, strikethrough, and "all done" banner are reset via CSS.
-
-**Standby print page:** `/v2/:slug/print` — a single-page print document with all content (guidebook + FAQ + checkout) assembled inline. Not linked anywhere currently, but route is active. To activate: add a button linking to it.
+- FAQ: all answers always in DOM, `@media print` forces `.faq-answer { display: block }`
 
 ---
 
-### 4.9 Tablet Layout
+## 6. V3 Guidebook — Full Detail (Session 7)
 
-On `md` screens (768px–1023px), a compact property detail card is injected between the hero and the 3-column layout (`hidden md:block lg:hidden`). It shows: property name, address, check-in time, check-out time, max guests, Map link, Check-Out button.
+### URLs (local only)
+| Property | Local |
+|---|---|
+| Reynard Way | http://localhost:5175/v3/reynard-way |
+| Hawk Street | http://localhost:5175/v3/hawk-street |
+| Jackson Street | http://localhost:5175/v3/jackson-st |
+| Vista Pointe | http://localhost:5175/v3/vista-pointe |
+
+### V3 vs V2 differences
+- **Identical to V2 EXCEPT:** `local_guide` and `things_to_do` sections are **removed**
+- **Added:** `activity_center` section — powered by the Global Activity Repository
+- All other sections, design, night mode, hero, FAQ, checkout — identical to V2
+
+### V3 Active Sections (in order)
+`welcome` · `entry` · `parking` · `wifi` · `house_rules` · `the_home` · `additional_space` · `outdoor_spaces` · `services_maintenance` · `transport` · **`activity_center`** · `checkout`
+
+### V3 Activity Center
+- 4 category tabs: **RBC** (red), **Parks & Beaches** (green), **Shopping & Attractions** (amber), **Others** (blue)
+- Default tab: RBC (Restaurants, Bars & Cafés)
+- Same flip-card UI as V2 Local Guide (image front, details on tap)
+- `resolveImg()` helper handles both local paths (`/images/local/...`) and external URLs
+- Mobile: horizontal scroll tabs, "← swipe to see all categories →" hint, right fade gradient
+
+### V3 Content Data Flow
+1. `adminV3Store.js` — 36 seed activities pre-populated with images
+2. V3 admin draft → `talo_admin_v3_draft` in localStorage
+3. V3 admin publish → `talo_admin_v3_live` in localStorage
+4. Guidebook reads: `talo_admin_v3_live` first, falls back to `talo_admin_v3_draft`
+5. **To make activities show in guidebook:** go to `/admin-v3`, click Publish in the header
+
+### V3 Admin Panel — `/admin-v3`
+
+**New features over V2 admin:**
+
+**1. Global Activity Repository (`/admin-v3/activities`)**
+- Master library of all activities across all properties/cities
+- Add/Edit/Delete activities
+- Fields: Name* (required), Category* (required), Description, Address, Phone, Website, Image URL
+- 4 categories: RBC · Parks & Beaches · Shopping & Attractions · Others
+- Tile grid display with category filter tabs and search
+- Adding an activity automatically adds it to all property curations (enabled by default)
+- Deleting an activity removes it from all property curations
+
+**2. Per-property Activity Curation (`/admin-v3/property/:slug/activities`)**
+- Categories shown collapsed — expand to see activities
+- Toggle each activity on/off per property (off = hidden in guidebook, stays in global repo)
+- Reorder with ↑↓ arrows within each category
+- Changes are property-specific
+
+**3. Property Management**
+- Add new property (`/admin-v3/add-property`) — slug auto-generated from name
+- New properties get all sections blank + all activities enabled by default
+- Deactivate/reactivate properties (hides from guidebook, stays in admin)
+
+### V3 Data Schema (adminV3Store.js)
+
+```js
+// Activity object
+{
+  id: 'act-001',
+  name: "Filippi's Pizza Grotto",   // required
+  category: 'rbc',                   // required: 'rbc' | 'parks-beaches' | 'shopping-attractions' | 'others'
+  description: '...',                // optional
+  address: '...',                    // optional
+  phone: '...',                      // optional
+  website: 'https://...',            // optional
+  imageUrl: '/images/local/x.jpg',   // optional — local path OR external URL
+}
+
+// Per-property curation
+propertyCuration: {
+  'reynard-way': {
+    rbc: [{ activityId: 'act-001', enabled: true, order: 0 }, ...],
+    'parks-beaches': [...],
+    'shopping-attractions': [...],
+    others: [...],
+  }
+}
+
+// Property list (includes new properties added by Joe)
+propertyList: [{ slug: 'reynard-way', status: 'active' }, ...]
+```
+
+### V3 Store Methods
+```js
+adminV3Store.getActivities()                              // all global activities
+adminV3Store.addActivity(data)                            // add + sync to all property curations
+adminV3Store.updateActivity(id, updates)
+adminV3Store.deleteActivity(id)                           // remove from global + all curations
+adminV3Store.getPropertyCuration(slug)                    // { rbc: [...], 'parks-beaches': [...], ... }
+adminV3Store.toggleActivityForProperty(slug, cat, actId)  // flip enabled state
+adminV3Store.reorderPropertyCategory(slug, cat, orderedIds)
+adminV3Store.addProperty({ name, address })               // auto-generates slug
+adminV3Store.setPropertyStatus(slug, 'active'|'inactive')
+adminV3Store.publish()                                    // writes talo_admin_v3_live
+adminV3Store.discardDraft()
+```
 
 ---
 
-## 5. Properties Reference
+## 7. Properties Reference
 
 | Slug | Name | Address | Max Guests |
 |---|---|---|---|
@@ -285,59 +402,23 @@ On `md` screens (768px–1023px), a compact property detail card is injected bet
 | `jackson-st` | Jackson Street | 2525 Jackson St, San Diego, CA 92110 | 16 |
 | `vista-pointe` | Vista Pointe | 3792 Vista Pointe, Bonita, CA 91902 | 16 |
 
-**Host (all):** Joe Saari · `saari.joseph@gmail.com` · `+1 (608) 239-3574`
 **Check-in:** 4:00 PM · **Check-out:** 11:00 AM (all properties)
 
 ---
 
-## 6. Vista Pointe — Image Map ✅
+## 8. Photo Mapping — Vista Pointe ✅ & Jackson Street ✅
 
-**AirBnB:** https://www.airbnb.com/rooms/1476889583543698184
-**Photos folder:** `public/photos/vista-pointe/` (82 files, UUID `.jpeg`)
+Both complete. See previous sessions for details.
 
-| Section | Block ID | Photo UUIDs used |
-|---|---|---|
-| Welcome | `welcome-vista-msg` | `e00570e1` |
-| Entry | `entry-vista` | `jackson-enter.png` |
-| Parking | `parking-vista` | `3d2ab098` |
-| Home Overview | `home-vista-overview` | `e00570e1` + `7c018d78` + `4f8fbadc` |
-| Bedrooms | `home-vista-bedrooms` | `f95d804e` + `79247d82` + `1248ca54` |
-| Kitchen | `home-vista-kitchen` | `850800ed` + `32a42c88` |
-| Laundry | `home-vista-laundry` | `56f6229b` |
-| Pool & Jacuzzi | `outdoor-vista-pool` | `ad9adbcf` + `c045b79b` |
-| Patio & BBQ | `outdoor-vista-patio` | `vista-patio.avif` + `7aa4338f` |
+**Reynard Way 🔲 & Hawk Street 🔲 — Still Needed**
 
----
-
-## 7. Jackson Street — Image Map ✅
-
-**AirBnB:** https://www.airbnb.com/rooms/1538684793721325394
-**Photos folder:** `public/photos/jackson-st/` (59 files + parking.avif)
-
-| Section | Block ID | Photo UUID(s) | Caption |
-|---|---|---|---|
-| Welcome | `welcome-jackson-msg` | `92272c0b` | ✅ |
-| Entry | `entry-jackson` | `92272c0b` | ✅ |
-| Parking | `parking-jackson` | `parking.avif` | Driveway + exterior roll-up door |
-| Home Overview | `home-jackson-overview` | `dc593096` + `e2159565` | |
-| Bedrooms | `home-jackson-bedrooms` | `6fbed64d` + `4afea22b` + `573b3ad5` | |
-| Kitchen | `home-jackson-kitchen` | `d4f3baef` + `3820fd19` | |
-| Laundry | `home-jackson-laundry` | `8d787f08` | |
-| Outdoor Decks | `outdoor-jackson-decks` | `a4d681eb` + `634b598c` | |
-| Fire Pit & BBQ | `outdoor-jackson-firepit-bbq` | `fb4f506f` + `d3df78d2` | |
-
----
-
-## 8. Photo Mapping Process (Repeat for Reynard Way + Hawk Street)
-
-### Step 1 — Extract from Airbnb (Chrome MCP — if not blocked)
-
+### Process
+1. Open Airbnb listing in Chrome, run this in DevTools console:
 ```js
 const scripts = Array.from(document.querySelectorAll('script:not([src])'));
 const niobe = scripts.find(s => s.textContent.includes('niobeClientData'));
 const parsed = JSON.parse(niobe.textContent);
 const data = parsed.niobeClientData[0][1].data;
-
 const imageMap = {};
 const walkForImages = (obj) => {
   if (!obj || typeof obj !== 'object') return;
@@ -349,7 +430,6 @@ const walkForImages = (obj) => {
   else Object.values(obj).forEach(v => { if (v && typeof v === 'object') walkForImages(v); });
 };
 walkForImages(data);
-
 const sections = {};
 const seen = new Set();
 const walkForSections = (obj) => {
@@ -368,35 +448,10 @@ window.__propertyPhotos = sections;
 Object.keys(sections).length + ' sections found';
 ```
 
-> **Note:** Airbnb may block Chrome MCP JS execution. Fall back to visually scanning local files with the `Read` tool.
-
-### Step 2 — Copy files to project
-
-```bash
-SRC="/Users/anantgyan/Downloads/AiirBNB Photos"
-DEST="/Users/anantgyan/talo-guidebook/public/photos/<slug>"
-mkdir -p "$DEST"
-cp "$SRC/uuid.jpeg" "$DEST/uuid.jpeg"
-```
-
-### Step 3 — Update `contentStore.js`
-
-- Match section names to block IDs
-- 1–3 best images per section
-- Image path format: `/photos/<slug>/uuid.jpeg`
-
-### Step 4 — Bump localStorage key + Deploy
-
-```js
-// contentStore.js line ~2041
-const STORAGE_KEY = 'talo_content_blocks_v9'  // bump v8 → v9
-```
-
-Then deploy:
-```bash
-cd /Users/anantgyan/talo-guidebook
-npm run deploy
-```
+2. Copy photos to `public/photos/<slug>/`
+3. Update `contentStore.js` with image paths
+4. Bump `STORAGE_KEY` in `contentStore.js` (v8 → v9)
+5. Deploy
 
 ---
 
@@ -404,48 +459,185 @@ npm run deploy
 
 **Repo:** `https://github.com/talodeveloper/talo-guidebook`
 **Live site:** `https://talodeveloper.github.io/talo-guidebook/`
-**GitHub account:** talodeveloper
+**Account:** talodeveloper
 
-**To push updates (one command):**
+**To push any update:**
 ```bash
 cd /Users/anantgyan/talo-guidebook && npm run deploy
 ```
 
-This builds and publishes automatically. Source code is on `main` branch, built site is on `gh-pages` branch.
-
-**GitHub token** (expires ~60 days from Jun 6 2025): stored locally — do not commit. Ask Joe to regenerate if expired.
-When expired: go to github.com → Joe's account → Settings → Developer settings → Personal access tokens → generate new classic token with `repo` scope. Then update the remote:
+**GitHub token** (expires ~60 days from Jun 6 2025): stored locally.
+If expired: GitHub → Settings → Developer settings → Personal access tokens → new classic token with `repo` scope, then:
 ```bash
 git remote set-url origin https://talodeveloper:NEW_TOKEN@github.com/talodeveloper/talo-guidebook.git
 ```
 
+**V3 not deployed yet.** When ready, just run `npm run deploy` — the SPA includes all routes.
+
 ---
 
-## 10. Resume Prompt
+## 10. Vite Config
 
+```js
+export default defineConfig(({ command }) => ({
+  plugins: [react()],
+  base: command === 'build' ? '/talo-guidebook/' : '/',
+  server: { port: 5175, strictPort: true },
+}))
+```
+
+---
+
+## 11. Resume Prompts
+
+### To work on V2 (guidebook or admin):
 ```
 I'm continuing work on the "talo-guidebook" project.
 Project root: /Users/anantgyan/talo-guidebook
+READ /Users/anantgyan/talo-guidebook/Handoff.md FIRST — it has everything.
 
-Please READ the file /Users/anantgyan/talo-guidebook/Handoff.md FIRST before doing anything — it has the full architecture, all design decisions, current status, and what's next.
-
-Quick orientation:
-- React + Vite + Tailwind SPA. Dev server: npm run dev → port 5175
-- V2 URLs: http://localhost:5175/v2/reynard-way (also hawk-street, jackson-st, vista-pointe)
-- Live: https://talodeveloper.github.io/talo-guidebook/v2/reynard-way
-- V1 (/:slug) is preserved — DO NOT TOUCH IT EVER
-- localStorage key: 'talo_content_blocks_v8'
-- Vista Pointe ✅ and Jackson Street ✅ photo mapping complete
-- Reynard Way 🔲 and Hawk Street 🔲 still need photo mapping
+Quick V2 orientation:
+- Dev server: npm run dev → port 5175
+- V2 guidebook: http://localhost:5175/v2/reynard-way (also hawk-street, jackson-st, vista-pointe)
+- V2 admin: http://localhost:5175/admin-v2 — Login: joe@talo.ventures / Mytalo@2026
+- V2 live: https://talodeveloper.github.io/talo-guidebook/v2/reynard-way
+- V1 (/:slug) — NEVER TOUCH IT
+- localStorage: talo_admin_v2_draft / talo_admin_v2_live
 - imgUrl() helper must be used for ALL image paths in V2GuidebookPage.jsx
-- All Unsplash images have been replaced with self-hosted copies in public/images/local/
+- Vista Pointe ✅ Jackson Street ✅ photo mapped. Reynard Way 🔲 Hawk Street 🔲 need mapping.
+- To deploy: cd /Users/anantgyan/talo-guidebook && npm run deploy
+```
 
-Next task: Photo mapping for Reynard Way, then Hawk Street.
-Joe will open each Airbnb listing in Chrome and share the URL.
-Follow the process in Handoff.md Section 8.
-After both done → confirm admin panel access with Joe.
+### To work on V3 (Activity Center / new admin features):
+```
+I'm continuing work on the "talo-guidebook" project.
+Project root: /Users/anantgyan/talo-guidebook
+READ /Users/anantgyan/talo-guidebook/Handoff.md FIRST — it has everything.
+
+Quick V3 orientation:
+- Dev server: npm run dev → port 5175
+- V3 guidebook: http://localhost:5175/v3/reynard-way (also hawk-street, jackson-st, vista-pointe)
+- V3 admin: http://localhost:5175/admin-v3 — Login: joe@talo.ventures / Mytalo@2026
+- V3 is NOT yet deployed to GitHub Pages (V2 is live)
+- V3 = V2 layout + Activity Center section (replaces Local Guide + Things To Do)
+- Activity Center: 4 tabs (RBC, Parks & Beaches, Shopping & Attractions, Others), flip cards
+- Global Activity Repository: 36 pre-seeded activities with local images from public/images/local/
+- localStorage: talo_admin_v3_draft / talo_admin_v3_live / talo_admin_v3_auth
+- Guidebook reads from talo_admin_v3_live (falls back to draft for preview)
+- To make activities show: go to /admin-v3 → Publish
+- V1 (/:slug) and V2 (/v2/:slug and /admin-v2) — NEVER TOUCH THEM
+- resolveImg() helper in V3GuidebookPage.jsx handles both local paths and external URLs
 ```
 
 ---
 
-*Session 1: Full V2 UI | Session 2: FAQ, hero, Vista Pointe | Session 3: Jackson Street | Session 4: GitHub Pages, images, print CSS, tablet card*
+*Session 1: Full V2 UI | Session 2: FAQ, hero, Vista Pointe | Session 3: Jackson Street | Session 4: GitHub Pages, images, print CSS, tablet | Session 5: Admin Panel V2 | Session 6: WYSIWYG editor, reorder, credentials, deployed | Session 7: V3 Admin (Global Activities, Property Curation, Add Property) + V3 Guidebook (Activity Center with tabs + flip cards) | Session 8: Firebase Firestore backend, Check-In page, Check-Out form, admin check-in/checkout records, blue Check In buttons, property info reorder, unpublished changes dropdown, greyed Publish, hide email if empty | Session 9: Stay-aware checkout matching, Guest Database admin page (flat tabular CSV export for email marketing), host phone visible on guidebook, Call/Text label, phone+email regex validation, composite grouping key fix (same-named bookers across properties no longer merge)*
+
+---
+
+## Sessions 10–12 (V3 sync + architectural overhaul) — LOCAL ONLY
+
+V2 is unchanged in production. Everything below lives only in the local V3 codebase.
+
+### What changed
+1. **V3 brought to parity with V2 first** — Check-In page, admin Check-In Records / Checked Out / Guest Database pages, blue Check In buttons, host phone visible, Call/Text label, phone+email validation, composite grouping key, hide-email-if-empty, unpublished-changes dropdown with diff per section, always-visible Publish button.
+2. **House Rules — mixed global + property ordering per property** — `_draft.propertyBlockOrder[slug][sectionKey]` is the overlay; `applyPropertyBlockOrder()` reorders both admin and guidebook reads.
+3. **Global FAQ with per-property curation** — `_draft.globalFaq[]` + `_draft.faqCuration[slug] = [{id, source, enabled}]`. Property FAQ editor shows one mixed list; expanding a global question shows only an explanatory message ("This is a Global FAQ — common to all properties…"). Switch hides it per property. Guest FAQ reads via `buildFaqList()`.
+4. **New V3 check-in flow** at `/v3/:slug/checkin` — interstitial "Did you make the reservation?" → Yes: primary booker (first+last+email+phone required + adults/minors counts + per-guest names/ages + admin-editable $50 offer text); No: guest (first+last required, email optional). Both write to `v2_checkins` with `checkinRole` field.
+5. **Activity Center moved to its own page** at `/v3/:slug/activities` — FAQ-style accordions per category, flip cards inside.
+6. **Activity categories are data-driven** — `_draft.activityCategories[]` editable from Global Activities → "Manage Categories" (rename any, delete custom, add unlimited). Auto-cycles color palette.
+7. **Per-property Section Manager** at `/admin-v3/property/:slug/sections` — toggle any section off (content kept), reorder (parent+children move together), rename labels, add unlimited custom sections (`custom-<id>`). Built from `_draft.propertySectionConfig[slug]` via `buildV3Sections()`.
+8. **Outdoor Spaces nested under The Home** — both in left/mobile TOC (click-to-expand chevron) and on the page (Outdoor renders as subsection like Additional Spaces).
+9. **"Contact & Emergency Info"** is now a TOC subsection under House Rules — virtual entry anchored to the matching block by title.
+10. **Property Info card visibility toggles** — `info.showPropertyCard / showWifiCard / showHostCard / checkInEnabled / showCheckoutTimeBanner` on each property. Toggle in admin Property Info; guidebook respects them. Check-in page shows a "not available" screen when disabled.
+11. **Check-Out section editor — per-block toggles** — switch on each block (Before You Go, Legal Notice…) + dedicated switch for the amber check-out time banner. Stored in `_draft.disabledBlocks[slug] = [blockId,…]`. Guest checkout page filters them out for V3 only.
+12. **Property deactivation hardened** — per-page state refreshes on slug change (PropertyHome/PropertyInfo/PropertyActivities) so stale names/data don't show after toggling status.
+13. **Property delete** — 30-day cool-off after deactivation. Two-layer confirmation: warning ("you will lose access to the guidebook…"), then admin email + password re-entry. `adminV3Store.deleteProperty(slug)` purges propertyList/properties/faq/faqCuration/propertyCuration/propertySections/propertyBlockOrder/propertySectionConfig/disabledBlocks + all property blocks.
+14. **Preview links fixed for new properties** — V3 guidebook layout now falls back to draft for unpublished property previews. V2 preview link hidden for non-base (`BASE_PROPERTY_SLUGS`) properties.
+15. **Section spelling** — "Additional Space" → "Additional Spaces" in sections.js.
+16. **Activity Center toggle/sort is real-time** — store now replaces curation object reference immutably so React state detects the change.
+
+### Key new files
+- `src/admin-v3/pages/PropertySections.jsx` — section manager UI
+- `src/guidebook/v3/V3CheckInPage.jsx` — new check-in flow
+- `src/guidebook/v3/V3ActivityPage.jsx` — Activity Center as its own page
+
+### Key new store APIs (`src/data/adminV3Store.js`)
+- `getChangeSummary()`, `getActivityCategories()`, `addActivityCategory()`, `renameActivityCategory()`, `deleteActivityCategory()`
+- `getSectionConfig(slug)`, `setSectionConfig()`, `addCustomSection()`, `removeCustomSection()`
+- `getGlobalFaq()`, `addGlobalFaqItem()`, `updateGlobalFaqItem()`, `deleteGlobalFaqItem()`
+- `getFaqDisplay(slug)`, `setFaqCuration()`, `moveFaqEntry()`, `toggleFaqEntry()`, `addLocalFaqItem()`, `updateLocalFaqItem()`, `deleteLocalFaqItem()`
+- `getOrderedBlocksForSection()`, `setPropertyBlockOrder()`
+- `getDisabledBlocks()`, `isBlockDisabled()`, `toggleBlockDisabled()`
+- `verifyCredentials()`, `deleteProperty()`
+- Pure helpers exported for guidebook use: `applyPropertyBlockOrder()`, `buildFaqList()`, `buildV3Sections()`
+
+### Data model additions in `talo_admin_v3_draft` / `_live`
+```
+activityCategories: [{key, label, color, accent}]
+globalFaq: [{id, q, a}]
+faqCuration: { [slug]: [{id, source: 'global'|'local', enabled}] }
+propertyBlockOrder: { [slug]: { [sectionKey]: [blockId, …] } }
+propertySectionConfig: { [slug]: [{key, enabled, label, icon, custom}] }
+disabledBlocks: { [slug]: [blockId, …] }
+propertyList[i].deactivatedAt: ISO timestamp (when status === 'inactive')
+properties[slug].checkInWelcome / checkInOfferText: strings
+properties[slug].showPropertyCard / showWifiCard / showHostCard: booleans (undefined = true)
+properties[slug].checkInEnabled / showCheckoutTimeBanner: booleans (undefined = true)
+```
+
+---
+
+## Two-phase production deployment plan
+
+V2 stays untouched until both phases land. Changes batched by risk — architecture first (Phase 1) since everything else builds on it.
+
+### Phase 1 — Architectural changes (deploy first)
+The big structural shifts. Riskier because they change how data is read/written. Test thoroughly on local before promoting.
+
+- New stores/data shapes: `propertySectionConfig`, `propertyBlockOrder`, `globalFaq`, `faqCuration`, `activityCategories`, `disabledBlocks`, `propertyList[].deactivatedAt`
+- Per-property Section Manager (`/admin-v3/property/:slug/sections`) + dynamic section rendering on guidebook
+- Activity Center moved to its own page (`/v3/:slug/activities`); data-driven categories with admin CRUD
+- House Rules mixed global+property ordering per property
+- Global FAQ + per-property mixing/disable
+- New V3 check-in flow (interstitial + primary-booker branch)
+- Outdoor Spaces nested under The Home + TOC dropdown behavior
+- Property delete with 30-day cool-off + credential confirmation
+- New preview-link behavior (V3-only for new properties)
+
+**Phase 1 sanity checks before merging to main:**
+1. `npm run build` succeeds
+2. Open each of the 4 base properties at `/v3/<slug>` — TOC, sections, activity center page, FAQ, check-in interstitial, checkout all render
+3. `/admin-v3` → Properties → Reynard Way → Manage Sections → toggle one section off → confirm hidden on guidebook
+4. Global FAQ: add one → confirm appears on all 4 properties with disable switch
+5. House Rules editor: reorder a global rule mid-list → confirm order saves per-property only
+6. Add property "Test Villa" → preview link opens correctly without publishing
+7. Deactivate a property → Property page still loads → re-activate → name updates correctly
+8. Publish → live key updates → reload guest guidebook reflects changes
+
+### Phase 2 — Polish & content features (deploy after Phase 1 is stable)
+Lower-risk additions that depend on Phase 1.
+
+- Property Info card visibility toggles (Property/Wi-Fi/Host/Check-In)
+- Check-Out per-block toggles + amber time banner toggle
+- Global FAQ row collapsed message ("This is a Global FAQ…")
+- Activity Center sort/toggle real-time fix
+- Stale-state fixes on PropertyHome/PropertyInfo/PropertyActivities
+- "Additional Space" → "Additional Spaces" spelling
+- Contact & Emergency Info as TOC subsection
+- Your Host card moved under Property card in sidebar
+- Sections grid: remove duplicate Check-Out
+
+**Phase 2 sanity checks:**
+1. In admin Property Info, toggle each card off → confirm matching guidebook card disappears
+2. Check-Out editor: toggle Before You Go off + time banner off → guest checkout page reflects both
+3. Click on a global FAQ row in property FAQ editor → confirm message appears (no editable preview)
+4. Activity Center admin: re-order an activity with arrows → updates immediately
+5. Re-publish → spot-check all 4 properties + 1 new test property
+
+### Rollback
+Each phase is one Git commit (or small series). To roll back: `git revert <commit>` and re-deploy. Both phases only touch V3 code paths and a new localStorage shape (V2 keys are untouched), so V2 production is unaffected by either rollback.
+
+---
+
+*Session 10: V2→V3 parity sync | Session 11: House rule + FAQ mixing, sections engine, Activity page, categories admin, dynamic check-in flow, deactivation/delete, preview-link fix | Session 12: Property Info card toggles, checkout part toggles, duplicate fix, menu/content order verified, QA pass, 2-phase deployment plan*

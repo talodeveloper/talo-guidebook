@@ -2040,13 +2040,18 @@ let _blocks = [
 
 const STORAGE_KEY = 'talo_content_blocks_v8'
 
-// Load from localStorage if available (admin changes persist across navigation)
-const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-if (_savedRaw) {
+// Priority 1: admin v2 published data (highest authority)
+const _adminV2Raw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_admin_v2_live') : null
+if (_adminV2Raw) {
   try {
-    _blocks = JSON.parse(_savedRaw)
-  } catch (e) {
-    // corrupted storage, use defaults
+    const _adminV2Live = JSON.parse(_adminV2Raw)
+    if (Array.isArray(_adminV2Live?.blocks)) _blocks = _adminV2Live.blocks
+  } catch {}
+} else {
+  // Priority 2: legacy admin v1 key
+  const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+  if (_savedRaw) {
+    try { _blocks = JSON.parse(_savedRaw) } catch {}
   }
 }
 
@@ -2111,5 +2116,12 @@ export const contentStore = {
   subscribe: (fn) => {
     _listeners.push(fn)
     return () => { _listeners = _listeners.filter((l) => l !== fn) }
+  },
+
+  reloadFromLive: (blocks) => {
+    if (Array.isArray(blocks)) {
+      _blocks = [...blocks]
+      notify()
+    }
   },
 }

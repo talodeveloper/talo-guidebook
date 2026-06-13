@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useOutletContext, Link, useParams, useLocation } from 'react-router-dom'
 import { contentStore } from '../data/contentStore'
+import { db } from '../firebase'
+import { collection, addDoc } from 'firebase/firestore'
 import Icon from '../components/Icon'
 
 function ContentBlock({ block }) {
@@ -27,15 +29,35 @@ export default function Checkout() {
   const { slug } = useParams()
   const location = useLocation()
   const isV2 = location.pathname.startsWith('/v2/')
-  const backPath = isV2 ? `/v2/${slug}` : `/${slug}`
+  const isV3 = location.pathname.startsWith('/v3/')
+  const backPath = isV2 ? `/v2/${slug}` : isV3 ? `/v3/${slug}` : `/${slug}`
   const [blocks, setBlocks] = useState([])
   const [checked, setChecked] = useState({})
 
+  // V2 checkout sign-out form
+  const [checkoutForm, setCheckoutForm]           = useState({ primaryName: '', guestName: '' })
+  const [checkoutSubmitted, setCheckoutSubmitted] = useState(false)
+  const [submittingCheckout, setSubmittingCheckout] = useState(false)
+
   useEffect(() => {
-    const load = () => setBlocks(contentStore.getBlocksForSection('checkout', slug))
+    const load = () => {
+      let next = contentStore.getBlocksForSection('checkout', slug)
+      // V3: admin can hide individual checkout parts per property
+      if (isV3) {
+        try {
+          const raw = localStorage.getItem('talo_admin_v3_live') || localStorage.getItem('talo_admin_v3_draft')
+          const disabled = raw ? (JSON.parse(raw)?.disabledBlocks?.[slug] || []) : []
+          if (disabled.length) next = next.filter(b => !disabled.includes(b.id))
+        } catch {}
+      }
+      setBlocks(next)
+    }
     load()
     return contentStore.subscribe(load)
-  }, [slug])
+  }, [slug, isV3])
+
+  // V3: amber time banner can be hidden from admin (Check-Out editor)
+  const showTimeBanner = !isV3 || property.showCheckoutTimeBanner !== false
 
   // Extract checklist items from the first ordered list block
   const checklistBlock = blocks.find((b) => b.body?.includes('<ol>'))
@@ -53,6 +75,31 @@ export default function Checkout() {
     checklistItems.every((_, i) => checked[i])
 
   const toggle = (i) => setChecked((prev) => ({ ...prev, [i]: !prev[i] }))
+
+  const handleCheckout = async () => {
+    if (!checkoutForm.primaryName.trim() || !checkoutForm.guestName.trim()) return
+    setSubmittingCheckout(true)
+    const now = new Date()
+    const ts = now.toLocaleString('en-US', {
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+    try {
+      await addDoc(collection(db, 'v2_checkouts'), {
+        primaryGuestName:      checkoutForm.primaryName.trim(),
+        guestName:             checkoutForm.guestName.trim(),
+        propertySlug:          slug,
+        propertyName:          property.name,
+        checkedOutAt:          now.toISOString(),
+        checkedOutAtFormatted: ts,
+        checkedOutBy:          'guest',
+      })
+    } catch (err) {
+      console.error('[Firestore] checkout save failed:', err)
+    }
+    setSubmittingCheckout(false)
+    setCheckoutSubmitted(true)
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-5 md:px-8 py-10">
@@ -76,10 +123,12 @@ export default function Checkout() {
             <p className="text-on-surface-variant text-body-md">{property.name} · {property.checkoutTime}</p>
           </div>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
-          <Icon name="schedule" size={18} className="text-amber-700 flex-shrink-0" />
-          <p className="text-amber-800 text-body-md font-semibold">Check-out time: {property.checkoutTime}</p>
-        </div>
+        {showTimeBanner && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
+            <Icon name="schedule" size={18} className="text-amber-700 flex-shrink-0" />
+            <p className="text-amber-800 text-body-md font-semibold">Check-out time: {property.checkoutTime}</p>
+          </div>
+        )}
       </div>
 
       {/* Interactive checklist */}
@@ -115,27 +164,84 @@ export default function Checkout() {
           </div>
 
           {allChecked && (
-            <div className="checkout-all-done mt-5 bg-primary text-white rounded-xl px-5 py-5 text-center">
-              <Icon name="check_circle" size={28} className="text-white mx-auto mb-1" />
-              <p className="font-bold text-label-lg">All done — safe travels!</p>
-              <p className="text-white/80 text-label-md mt-0.5">Thank you for staying with TALO Rentals.</p>
-              {/* Future booking CTA */}
-              <div className="mt-4 pt-4 border-t border-white/20">
-                <p className="text-white/85 text-label-md mb-3">
-                  Loved your stay? We'd love to have you back. 🌊
-                </p>
-                <a
-                  href="https://talo.rentals/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-white px-5 py-2.5 rounded-xl font-bold text-label-md hover:opacity-90 transition-opacity"
-                  style={{ color: '#C84B31' }}
-                >
-                  <Icon name="cottage" size={16} style={{ color: '#C84B31' }} />
-                  Browse our properties
-                  <Icon name="arrow_forward" size={14} style={{ color: '#C84B31' }} />
-                </a>
+            <div>
+              {/* All done card */}
+              <div className="checkout-all-done mt-5 bg-primary text-white rounded-xl px-5 py-5 text-center">
+                <Icon name="check_circle" size={28} className="text-white mx-auto mb-1" />
+                <p className="font-bold text-label-lg">All done — safe travels!</p>
+                <p className="text-white/80 text-label-md mt-0.5">Thank you for staying with TALO Rentals.</p>
+                <div className="mt-4 pt-4 border-t border-white/20">
+                  <p className="text-white/85 text-label-md mb-3">
+                    Loved your stay? We'd love to have you back. 🌊
+                  </p>
+                  <a
+                    href="https://talo.rentals/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-white px-5 py-2.5 rounded-xl font-bold text-label-md hover:opacity-90 transition-opacity"
+                    style={{ color: '#C84B31' }}
+                  >
+                    <Icon name="cottage" size={16} style={{ color: '#C84B31' }} />
+                    Browse our properties
+                    <Icon name="arrow_forward" size={14} style={{ color: '#C84B31' }} />
+                  </a>
+                </div>
               </div>
+
+              {/* V2 + V3: sign-out form (all tasks must be checked first — gate is allChecked above) */}
+              {(isV2 || isV3) && (
+                checkoutSubmitted ? (
+                  <div className="mt-4 rounded-xl p-5 text-center border border-green-200 bg-green-50">
+                    <Icon name="check_circle" size={30} className="text-green-600 mx-auto mb-2" />
+                    <p className="font-bold text-green-800 text-[15px]">Checkout confirmed!</p>
+                    <p className="text-green-700 text-[13px] mt-1">
+                      Thanks, {checkoutForm.guestName}! Safe travels. 🌊
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Icon name="assignment_turned_in" size={16} className="text-primary" />
+                      <p className="font-bold text-on-surface text-[14px]">Sign Out</p>
+                      <span className="ml-auto text-[11px] text-on-surface-variant">Takes 10 seconds</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">
+                          Primary Booker's Name <span className="text-primary">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={checkoutForm.primaryName}
+                          onChange={e => setCheckoutForm(f => ({ ...f, primaryName: e.target.value }))}
+                          placeholder="Name on the original booking"
+                          className="w-full px-3 py-2.5 rounded-xl border border-outline-variant/30 text-[13px] text-on-surface bg-surface focus:outline-none focus:ring-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">
+                          Your Full Name <span className="text-primary">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={checkoutForm.guestName}
+                          onChange={e => setCheckoutForm(f => ({ ...f, guestName: e.target.value }))}
+                          placeholder="Your own full name"
+                          className="w-full px-3 py-2.5 rounded-xl border border-outline-variant/30 text-[13px] text-on-surface bg-surface focus:outline-none focus:ring-1"
+                        />
+                      </div>
+                      <button
+                        disabled={!checkoutForm.primaryName.trim() || !checkoutForm.guestName.trim() || submittingCheckout}
+                        onClick={handleCheckout}
+                        className="w-full py-3 rounded-xl text-[13px] font-bold text-white transition-opacity disabled:opacity-40 mt-1"
+                        style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}
+                      >
+                        {submittingCheckout ? 'Confirming…' : 'Confirm Checkout'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
@@ -155,14 +261,18 @@ export default function Checkout() {
           <p className="text-on-surface-variant text-label-md">Your host</p>
         </div>
         <div className="flex gap-2">
-          <a href={`tel:${property.ownerPhone}`}
-            className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-xl text-label-md font-semibold hover:bg-primary-container transition-colors">
-            <Icon name="phone" size={16} className="text-white" /> Call
-          </a>
-          <a href={`mailto:${property.ownerEmail}`}
-            className="flex items-center gap-1.5 border border-outline-variant px-4 py-2 rounded-xl text-label-md font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
-            <Icon name="mail" size={16} /> Email
-          </a>
+          {property.ownerPhone && (
+            <a href={`tel:${property.ownerPhone}`}
+              className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-xl text-label-md font-semibold hover:bg-primary-container transition-colors">
+              <Icon name="phone" size={16} className="text-white" /> Call / Text
+            </a>
+          )}
+          {property.ownerEmail && (
+            <a href={`mailto:${property.ownerEmail}`}
+              className="flex items-center gap-1.5 border border-outline-variant px-4 py-2 rounded-xl text-label-md font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
+              <Icon name="mail" size={16} /> Email
+            </a>
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Outlet } from 'react-router-dom'
 import { properties } from '../../data/properties'
 import { adminStore } from '../../data/adminStore'
+import { getPropertyOverrides, subscribeProperties } from '../../data/firebaseSync'
 
 export default function V2GuidebookLayout() {
   const { slug } = useParams()
@@ -22,21 +23,41 @@ export default function V2GuidebookLayout() {
   }
 
   useEffect(() => {
-    const build = () => {
+    const build = (firestoreProps) => {
+      const propOverrides = firestoreProps ?? getPropertyOverrides()
       const adminProp = adminStore.getProperty(slug)
-      if (staticProperty) {
-        const merged = adminProp
+      let merged = staticProperty
+        ? adminProp
           ? { ...staticProperty, ...adminProp, photos: { ...staticProperty.photos, ...adminProp.photos } }
-          : staticProperty
-        setActiveProperty(merged)
-      } else if (adminProp) {
-        setActiveProperty(adminProp)
-      } else {
-        navigate('/', { replace: true })
+          : { ...staticProperty }
+        : adminProp || null
+
+      if (!merged) { navigate('/', { replace: true }); return }
+
+      // Apply admin v2 live localStorage overrides
+      try {
+        const liveRaw = localStorage.getItem('talo_admin_v2_live')
+        if (liveRaw) {
+          const live = JSON.parse(liveRaw)
+          const overrides = live?.properties?.[slug]
+          if (overrides) {
+            merged = { ...merged, ...overrides, wifi: { ...merged.wifi, ...overrides.wifi } }
+          }
+        }
+      } catch {}
+
+      // Apply Firestore overrides — highest priority, visible to ALL devices
+      const fsOverrides = propOverrides[slug]
+      if (fsOverrides) {
+        merged = { ...merged, ...fsOverrides, wifi: { ...merged.wifi, ...(fsOverrides.wifi || {}) } }
       }
+
+      setActiveProperty(merged)
     }
     build()
-    return adminStore.subscribe(build)
+    const unsubAdmin     = adminStore.subscribe(() => build())
+    const unsubFirestore = subscribeProperties(build)
+    return () => { unsubAdmin(); unsubFirestore() }
   }, [staticProperty, slug, navigate])
 
   if (!activeProperty) return null

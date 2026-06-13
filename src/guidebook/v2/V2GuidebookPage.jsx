@@ -438,12 +438,20 @@ export function V2RightSidebar({ property, slug, mapsUrl }) {
             <span className="font-bold" style={{ color: TEXT }}>Up to {property.maxGuests}</span>
           </div>
         </div>
-        <Link to={`/v2/${slug}/checkout`}
-          className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-[12px] font-bold text-white shadow-sm"
-          style={{ background: SUNSET }}>
-          <Icon name="checklist" size={14} className="text-white" />
-          Check-Out Instructions
-        </Link>
+        <div className="grid grid-cols-2 gap-2">
+          <Link to={`/v2/${slug}/checkin`}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
+            <Icon name="login" size={13} className="text-white" />
+            Check In
+          </Link>
+          <Link to={`/v2/${slug}/checkout`}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+            style={{ background: SUNSET }}>
+            <Icon name="logout" size={13} className="text-white" />
+            Check Out
+          </Link>
+        </div>
       </div>
 
       {/* FAQ Card */}
@@ -462,20 +470,20 @@ export function V2RightSidebar({ property, slug, mapsUrl }) {
         </div>
       </Link>
 
-      {/* WiFi card */}
-      <div className="rounded-2xl p-5 text-white shadow-sm" style={{ background: OCEAN }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Icon name="wifi" size={18} className="text-white/80" />
-          <h3 className="font-bold text-label-md uppercase tracking-wide">Wi-Fi</h3>
+      {/* WiFi card — compact */}
+      <div className="rounded-xl p-3 text-white shadow-sm" style={{ background: OCEAN }}>
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Icon name="wifi" size={14} className="text-white/80" />
+          <h3 className="font-bold text-[11px] uppercase tracking-wide">Wi-Fi</h3>
         </div>
-        <div className="space-y-3">
-          <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.15)' }}>
-            <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>Network</p>
-            <p className="font-bold text-white text-label-md">{property.wifi?.network}</p>
+        <div className="space-y-1.5">
+          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <p className="text-[9px] uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>Network</p>
+            <p className="font-bold text-white text-[12px]">{property.wifi?.network}</p>
           </div>
-          <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.15)' }}>
-            <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>Password</p>
-            <p className="font-bold text-white text-label-md break-all">{property.wifi?.password}</p>
+          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <p className="text-[9px] uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>Password</p>
+            <p className="font-bold text-white text-[12px] break-all">{property.wifi?.password}</p>
           </div>
         </div>
       </div>
@@ -484,17 +492,27 @@ export function V2RightSidebar({ property, slug, mapsUrl }) {
       <div className="rounded-xl border p-4" style={{ borderColor: BORDER, background: CARD_BG }}>
         <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: MUTED }}>Your Host</p>
         <p className="font-bold text-label-md" style={{ color: TEXT }}>{property.ownerName}</p>
+        {property.ownerPhone && (
+          <p className="text-[12px] mt-1 select-all" style={{ color: MUTED }}>
+            <Icon name="phone" size={11} style={{ color: PRIMARY }} className="inline mr-1" />
+            <span className="font-medium">{property.ownerPhone}</span>
+          </p>
+        )}
         <div className="flex gap-2 mt-3">
-          <a href={`tel:${property.ownerPhone}`}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-sm font-bold text-white"
-            style={{ background: SUNSET }}>
-            <Icon name="phone" size={14} className="text-white" /> Call
-          </a>
-          <a href={`mailto:${property.ownerEmail}`}
-            className="flex-1 flex items-center justify-center gap-1.5 border py-2 rounded-lg text-label-sm font-bold transition-colors"
-            style={{ borderColor: BORDER, color: MUTED }}>
-            <Icon name="mail" size={14} /> Email
-          </a>
+          {property.ownerPhone && (
+            <a href={`tel:${property.ownerPhone}`}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-sm font-bold text-white"
+              style={{ background: SUNSET }}>
+              <Icon name="phone" size={14} className="text-white" /> Call / Text
+            </a>
+          )}
+          {property.ownerEmail && (
+            <a href={`mailto:${property.ownerEmail}`}
+              className="flex-1 flex items-center justify-center gap-1.5 border py-2 rounded-lg text-label-sm font-bold transition-colors"
+              style={{ borderColor: BORDER, color: MUTED }}>
+              <Icon name="mail" size={14} /> Email
+            </a>
+          )}
         </div>
       </div>
     </aside>
@@ -730,6 +748,12 @@ export default function V2GuidebookPage() {
               <Icon name="help" size={15} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} />
               FAQ
             </Link>
+            <Link to={`/v2/${slug}/checkin`} onClick={() => setTocOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 text-label-md border-b font-semibold"
+              style={{ borderColor: t.BORDER, color: '#2563EB', background: 'rgba(37,99,235,0.08)' }}>
+              <Icon name="login" size={15} style={{ color: '#2563EB' }} />
+              Check In
+            </Link>
             <Link to={`/v2/${slug}/checkout`} onClick={() => setTocOpen(false)}
               className="flex items-center gap-3 px-4 py-3 text-label-md transition-colors" style={{ color: t.MUTED }}>
               <Icon name="logout" size={15} />
@@ -739,54 +763,10 @@ export default function V2GuidebookPage() {
         )}
       </div>
 
-      {/* ── Mobile Property Card (horizontal, scrolls with page) ── */}
-      <div className="md:hidden px-4 pt-4">
-        <div className="rounded-2xl border shadow-sm" style={{ borderColor: t.BORDER, background: t.CARD }}>
-          {/* Top row: name + checkout button */}
-          <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-0.5" style={{ color: t.PRIMARY }}>Property</p>
-              <p className="font-bold text-[13px] leading-tight truncate" style={{ color: t.TEXT }}>{property.name}</p>
-              {/* Address + Map link on mobile */}
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <p className="text-[11px] truncate" style={{ color: t.MUTED }}>{property.address}</p>
-                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-0.5 text-[11px] font-semibold flex-shrink-0 hover:opacity-75 transition-opacity"
-                  style={{ color: t.PRIMARY }}>
-                  <Icon name="map" size={11} style={{ color: t.PRIMARY }} /> Map
-                </a>
-              </div>
-            </div>
-            <Link to={`/v2/${slug}/checkout`}
-              className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold text-white"
-              style={{ background: t.SUNSET }}>
-              <Icon name="checklist" size={11} className="text-white" /> Check-Out
-            </Link>
-          </div>
-          {/* Bottom row: details */}
-          <div className="px-4 pb-3 flex items-center gap-4 overflow-x-auto">
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Icon name="login" size={12} style={{ color: t.PRIMARY }} />
-              <span className="text-[11px]" style={{ color: t.MUTED }}>In</span>
-              <span className="text-[11px] font-bold" style={{ color: t.TEXT }}>{property.checkInTime}</span>
-            </div>
-            <span className="text-[10px]" style={{ color: t.MUTED }}>·</span>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Icon name="logout" size={12} style={{ color: t.PRIMARY }} />
-              <span className="text-[11px]" style={{ color: t.MUTED }}>Out</span>
-              <span className="text-[11px] font-bold" style={{ color: t.TEXT }}>{property.checkoutTime}</span>
-            </div>
-            <span className="text-[10px]" style={{ color: t.MUTED }}>·</span>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Icon name="group" size={12} style={{ color: t.PRIMARY }} />
-              <span className="text-[11px] font-bold" style={{ color: t.TEXT }}>Up to {property.maxGuests}</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Tablet property card (md only — desktop has right sidebar, mobile has its own bar) ── */}
-      <div className="no-print hidden md:block lg:hidden px-4 md:px-6 pt-4 pb-0">
+      {/* ── Inline property card — shows whenever the right sidebar is hidden (< lg) ── */}
+      {/* Replaces both the old "tablet only" card and closes the responsive gap at all sub-lg widths */}
+      <div className="no-print lg:hidden px-4 md:px-6 pt-4 pb-0">
         <div className="rounded-2xl border p-4 shadow-sm" style={{ borderColor: t.BORDER, background: t.CARD }}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             {/* Name + address */}
@@ -811,16 +791,21 @@ export default function V2GuidebookPage() {
               </div>
             </div>
             {/* Action buttons */}
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex flex-wrap gap-2 flex-shrink-0">
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-opacity hover:opacity-80"
                 style={{ background: `${t.PRIMARY}18`, color: t.PRIMARY }}>
                 <Icon name="map" size={13} /> Map
               </a>
+              <Link to={`/v2/${slug}/checkin`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
+                style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
+                <Icon name="login" size={13} /> Check In
+              </Link>
               <Link to={`/v2/${slug}/checkout`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
                 style={{ background: t.SUNSET }}>
-                <Icon name="checklist" size={13} /> Check-Out
+                <Icon name="logout" size={13} /> Check Out
               </Link>
             </div>
           </div>
@@ -860,13 +845,19 @@ export default function V2GuidebookPage() {
                   ))}
                 </React.Fragment>
               ))}
-              {/* FAQ in left sidebar */}
+              {/* FAQ + Check-In + Check-Out in left sidebar */}
               <div className="pt-2 mt-1" style={{ borderTop: `1px solid ${t.BORDER}` }}>
                 <Link to={`/v2/${slug}/faq`}
                   className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors hover:opacity-80 font-semibold"
                   style={{ color: nightMode ? '#A78BFA' : '#D97706', background: nightMode ? 'rgba(109,40,217,0.15)' : 'rgba(253,230,138,0.3)' }}>
                   <Icon name="help" size={14} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} />
                   <span>FAQ</span>
+                </Link>
+                <Link to={`/v2/${slug}/checkin`}
+                  className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors font-semibold"
+                  style={{ color: '#2563EB', background: 'rgba(37,99,235,0.1)' }}>
+                  <Icon name="login" size={14} style={{ color: '#2563EB' }} />
+                  <span>Check In</span>
                 </Link>
                 <Link to={`/v2/${slug}/checkout`}
                   className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"

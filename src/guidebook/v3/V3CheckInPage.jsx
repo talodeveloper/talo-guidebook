@@ -1,0 +1,693 @@
+import React, { useEffect, useState } from 'react'
+import { useOutletContext, useParams, Link } from 'react-router-dom'
+import { contentStore } from '../../data/contentStore'
+import { NightModeCtx, readV3Data } from './V3GuidebookPage'
+import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
+import Icon from '../../components/Icon'
+import { db } from '../../firebase'
+import { collection, addDoc } from 'firebase/firestore'
+
+// ─── Day theme ─────────────────────────────────────────────────────────────
+const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
+const PRIMARY   = '#C84B31'
+const TEXT      = '#1C0F06'
+const MUTED     = '#78716C'
+const BORDER    = 'rgba(200,80,50,0.12)'
+const CARD_BG   = '#FFFFFF'
+const SAND_BG   = '#FFF7ED'
+
+// ─── Night theme ───────────────────────────────────────────────────────────
+const N_SUNSET  = 'linear-gradient(135deg, #1E1B4B 0%, #312E81 35%, #4F46E5 65%, #7C3AED 100%)'
+const N_PRIMARY = '#818CF8'
+const N_TEXT    = '#E2E8F0'
+const N_MUTED   = '#94A3B8'
+const N_BORDER  = 'rgba(99,102,241,0.20)'
+const N_CARD_BG = '#111827'
+const N_SAND_BG = '#0B1120'
+
+const GREEN_GRAD = 'linear-gradient(135deg, #059669 0%, #10B981 100%)'
+const BLUE_GRAD  = 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)'
+
+function buildTheme(nightMode) {
+  return {
+    BG:     nightMode ? N_SAND_BG : SAND_BG,
+    CARD:   nightMode ? N_CARD_BG : CARD_BG,
+    BORDER: nightMode ? N_BORDER  : BORDER,
+    PRIMARY:nightMode ? N_PRIMARY : PRIMARY,
+    TEXT:   nightMode ? N_TEXT    : TEXT,
+    MUTED:  nightMode ? N_MUTED   : MUTED,
+    SUNSET: nightMode ? N_SUNSET  : SUNSET,
+  }
+}
+
+// ─── Validation ──────────────────────────────────────────────────────────────
+const validatePhone = (val) => {
+  if (!val.trim()) return ''
+  return /^[+]?[\d\s\-().]{7,15}$/.test(val.trim())
+    ? ''
+    : 'Phone must contain only digits, spaces, +, -, ( )'
+}
+const validateEmailFormat = (val) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()) ? '' : 'Enter a valid email address (e.g. you@example.com)'
+
+// ─── Shared input ────────────────────────────────────────────────────────────
+function FormInput({ label, required, optional, error, t, nightMode, ...props }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+        {label}{' '}
+        {required && <span style={{ color: PRIMARY }}>*</span>}
+        {optional && <span className="ml-1 font-normal normal-case" style={{ color: t.MUTED }}>(optional)</span>}
+      </label>
+      <input
+        {...props}
+        className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none transition-all"
+        style={{
+          border: `1.5px solid ${error ? '#EF4444' : t.BORDER}`,
+          background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+          color: t.TEXT,
+        }}
+      />
+      {error && (
+        <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: '#EF4444' }}>
+          <Icon name="error" size={11} /> {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Success screen ──────────────────────────────────────────────────────────
+function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offerText, isPrimary }) {
+  const t = buildTheme(nightMode)
+  const fullName = `${data.firstName} ${data.lastName}`.trim()
+  return (
+    <NightModeCtx.Provider value={nightMode}>
+      <style>{`
+        @media print {
+          .ci-no-print { display: none !important; }
+          .ci-print-show { display: block !important; }
+          .ci-print-page { background: white !important; padding: 0 !important; }
+          body { background: white !important; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+        .ci-print-show { display: none; }
+      `}</style>
+      <div className="ci-print-page min-h-screen" style={{ background: t.BG }}>
+        <div className="max-w-2xl mx-auto px-4 py-10">
+          <div className="ci-no-print flex flex-col items-center text-center mb-8">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-lg"
+              style={{ background: GREEN_GRAD }}>
+              <Icon name="check_circle" size={44} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: t.TEXT }}>Check-In Complete!</h1>
+            <p className="text-[15px]" style={{ color: t.MUTED }}>
+              Thank you, <strong style={{ color: t.TEXT }}>{fullName}</strong>
+            </p>
+            <p className="text-[13px] mt-1" style={{ color: t.MUTED }}>{property.name}</p>
+            <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>{timestamp}</p>
+          </div>
+
+          {/* Group check-in offer — primary booker only */}
+          {isPrimary && offerText && (
+            <div className="ci-no-print rounded-2xl p-4 mb-6 border"
+              style={{
+                borderColor: 'rgba(37,99,235,0.25)',
+                background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
+              }}>
+              <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+            </div>
+          )}
+
+          <div className="rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
+            <div className="ci-print-show mb-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: PRIMARY }}>TALO Rentals</p>
+              <h2 className="text-xl font-bold mb-1" style={{ color: TEXT }}>House Rules Agreement</h2>
+              <p className="text-[13px]" style={{ color: MUTED }}>{property.name} · {property.address}</p>
+              <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+              <div className="space-y-1 text-[13px]">
+                <p><strong>Guest Name:</strong> {fullName}</p>
+                {data.email && <p><strong>Email:</strong> {data.email}</p>}
+                {data.phone && <p><strong>Phone:</strong> {data.phone}</p>}
+                <p><strong>Role:</strong> {isPrimary ? 'Primary Booker' : 'Guest'}</p>
+                <p><strong>Agreed on:</strong> {timestamp}</p>
+              </div>
+              {isPrimary && (data.coGuests || []).length > 0 && (
+                <>
+                  <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+                  <p className="text-[13px] font-bold mb-1">Additional Guests</p>
+                  {data.coGuests.map((g, i) => (
+                    <p key={i} className="text-[12px]">
+                      {g.firstName} {g.lastName} — age {g.age}{Number(g.age) < 18 ? ' (minor)' : ''}
+                    </p>
+                  ))}
+                </>
+              )}
+              <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+            </div>
+            <h3 className="font-bold text-[14px] mb-3 flex items-center gap-2" style={{ color: t.TEXT }}>
+              <Icon name="gavel" size={15} style={{ color: t.PRIMARY }} />
+              Rules Agreed To
+            </h3>
+            <div className="space-y-2.5">
+              {rules.map((rule) => (
+                <div key={rule.id} className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: '#059669' }}>
+                    <Icon name="check" size={11} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[13px]" style={{ color: t.TEXT }}>{rule.title}</p>
+                    <div className="ci-print-show text-[11px] leading-relaxed mt-0.5
+                      [&_p]:mb-0.5 [&_strong]:font-semibold
+                      [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
+                      style={{ color: MUTED }}
+                      dangerouslySetInnerHTML={{ __html: rule.body }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 pt-4 rounded-xl p-4" style={{
+              borderTop: `1px solid ${t.BORDER}`,
+              background: nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.06)',
+              border: `1px solid rgba(5,150,105,0.2)`,
+            }}>
+              <p className="text-[12px] italic mb-2" style={{ color: t.MUTED }}>
+                "I hereby agree to follow these rules & share that with all other guests going to stay in this property. I will also share a copy of this agreement with all co-guests."
+              </p>
+              <p className="text-[13px] font-bold" style={{ color: t.TEXT }}>— {fullName}</p>
+              {data.email && <p className="text-[11px]" style={{ color: t.MUTED }}>{data.email}{data.phone ? ` · ${data.phone}` : ''}</p>}
+              <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>{timestamp}</p>
+            </div>
+          </div>
+
+          <div className="ci-no-print flex flex-col sm:flex-row gap-3">
+            <button onClick={() => window.print()}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: GREEN_GRAD }}>
+              <Icon name="download" size={16} className="text-white" />
+              Download PDF
+            </button>
+            <Link to={`/v3/${slug}`}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
+              style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
+              <Icon name="arrow_back" size={16} />
+              Back to Guidebook
+            </Link>
+          </div>
+        </div>
+      </div>
+    </NightModeCtx.Provider>
+  )
+}
+
+// ─── Interstitial: Did you make the reservation? ─────────────────────────────
+function ChoiceScreen({ property, slug, nightMode, onChoose }) {
+  const t = buildTheme(nightMode)
+  return (
+    <NightModeCtx.Provider value={nightMode}>
+      <div className="min-h-screen" style={{ background: t.BG }}>
+        <div className="max-w-xl mx-auto px-4 py-10">
+          <Link to={`/v3/${slug}`}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold mb-8 hover:opacity-75 transition-opacity"
+            style={{ color: t.PRIMARY }}>
+            <Icon name="arrow_back" size={14} /> Back to Guidebook
+          </Link>
+
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-md"
+              style={{ background: BLUE_GRAD }}>
+              <Icon name="login" size={30} className="text-white" />
+            </div>
+            <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: t.PRIMARY }}>Check-In</p>
+            <h1 className="text-2xl font-bold" style={{ color: t.TEXT }}>{property.name}</h1>
+          </div>
+
+          <div className="rounded-2xl border p-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
+            <h2 className="text-lg font-bold text-center mb-2" style={{ color: t.TEXT }}>
+              Did you make the reservation?
+            </h2>
+            <p className="text-[12px] leading-relaxed text-center mb-6" style={{ color: t.MUTED }}>
+              If you are the person who booked this property — the <strong>primary booker</strong> — select
+              <strong> Yes</strong>. If you are a guest staying with the primary booker, select <strong>No</strong>.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={() => onChoose('primary')}
+                className="flex flex-col items-center gap-2 p-5 rounded-2xl text-white shadow-md transition-transform hover:scale-[1.02]"
+                style={{ background: BLUE_GRAD }}>
+                <Icon name="vpn_key" size={26} className="text-white" />
+                <span className="font-bold text-[15px]">Yes, I booked it</span>
+                <span className="text-white/75 text-[11px]">I'm the primary booker</span>
+              </button>
+              <button onClick={() => onChoose('guest')}
+                className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-transform hover:scale-[1.02]"
+                style={{ borderColor: t.BORDER, background: nightMode ? 'rgba(255,255,255,0.04)' : SAND_BG }}>
+                <Icon name="group" size={26} style={{ color: t.PRIMARY }} />
+                <span className="font-bold text-[15px]" style={{ color: t.TEXT }}>No, I'm a guest</span>
+                <span className="text-[11px]" style={{ color: t.MUTED }}>Staying with the primary booker</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </NightModeCtx.Provider>
+  )
+}
+
+// ─── Rules checklist (shared by both flows) ──────────────────────────────────
+function RulesChecklist({ rules, checked, toggleRule, allChecked, checkedCount, t, nightMode }) {
+  return (
+    <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: t.BORDER }}>
+      <div className="px-5 py-3.5 flex items-center gap-2"
+        style={{ background: nightMode ? 'rgba(99,102,241,0.1)' : 'rgba(200,75,49,0.06)', borderBottom: `1px solid ${t.BORDER}` }}>
+        <Icon name="gavel" size={15} style={{ color: t.PRIMARY }} />
+        <span className="font-bold text-[14px]" style={{ color: t.TEXT }}>House Rules</span>
+        <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full"
+          style={{
+            background: allChecked ? 'rgba(5,150,105,0.15)' : (nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+            color: allChecked ? '#059669' : t.MUTED,
+          }}>
+          {checkedCount} / {rules.length} agreed
+        </span>
+      </div>
+      {rules.map((rule, idx) => (
+        <label key={rule.id}
+          className="flex gap-3.5 px-5 py-4 cursor-pointer transition-colors"
+          style={{
+            background: checked[rule.id]
+              ? (nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.05)')
+              : t.CARD,
+            borderTop: idx === 0 ? 'none' : `1px solid ${t.BORDER}`,
+          }}>
+          <div className="flex-shrink-0 mt-0.5" onClick={() => toggleRule(rule.id)}>
+            <input type="checkbox" className="sr-only" checked={checked[rule.id] || false} onChange={() => toggleRule(rule.id)} />
+            <div className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-150"
+              style={{
+                borderColor: checked[rule.id] ? '#059669' : t.MUTED,
+                background: checked[rule.id] ? '#059669' : 'transparent',
+              }}>
+              {checked[rule.id] && <Icon name="check" size={12} className="text-white" />}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-[13px] mb-1" style={{ color: t.TEXT }}>{rule.title}</p>
+            <div className="text-[12px] leading-relaxed
+              [&_p]:mb-1 [&_p:last-child]:mb-0 [&_strong]:font-semibold
+              [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:space-y-0.5
+              [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:space-y-0.5"
+              style={{ color: t.MUTED }}
+              dangerouslySetInnerHTML={{ __html: rule.body }}
+            />
+          </div>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+// ─── Main Check-In Page ──────────────────────────────────────────────────────
+export default function V3CheckInPage() {
+  const { property, nightMode } = useOutletContext()
+  const { slug } = useParams()
+
+  // 'choice' | 'primary' | 'guest'
+  const [step, setStep] = useState('choice')
+
+  const [rules, setRules]     = useState([])
+  const [checked, setChecked] = useState({})
+  const [errors, setErrors]   = useState({})
+  const [submitted, setSubmitted]         = useState(false)
+  const [submittedData, setSubmittedData] = useState(null)
+  const [submitTime, setSubmitTime]       = useState('')
+
+  // Common fields
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  // Primary-only: additional guests
+  const [adultCount, setAdultCount] = useState(0)
+  const [minorCount, setMinorCount] = useState(0)
+  const [coGuests, setCoGuests]     = useState([]) // [{ firstName, lastName, age, isMinor }]
+
+  const t = buildTheme(nightMode)
+  const offerText = property.checkInOfferText || DEFAULT_CHECKIN_OFFER
+
+  // Load house rules in the per-property curated order
+  useEffect(() => {
+    const load = () => {
+      const v3data = readV3Data()
+      const r = applyPropertyBlockOrder(
+        contentStore.getBlocksForSection('house_rules', slug), slug, 'house_rules', v3data
+      )
+      setRules(r)
+      setChecked((prev) => {
+        const next = {}
+        r.forEach((rule) => { next[rule.id] = prev[rule.id] ?? false })
+        return next
+      })
+    }
+    load()
+    return contentStore.subscribe(load)
+  }, [slug])
+
+  // Resize co-guest rows when counts change (adults first, then minors)
+  useEffect(() => {
+    setCoGuests(prev => {
+      const total = adultCount + minorCount
+      const next = []
+      for (let i = 0; i < total; i++) {
+        next.push(prev[i] || { firstName: '', lastName: '', age: '' })
+      }
+      return next.map((g, i) => ({ ...g, isMinor: i >= adultCount }))
+    })
+  }, [adultCount, minorCount])
+
+  const setField = (field, val) => {
+    setForm(f => ({ ...f, [field]: val }))
+    if (field === 'phone') setErrors(e => ({ ...e, phone: validatePhone(val) }))
+    if (field === 'email') setErrors(e => ({ ...e, email: val.trim() ? validateEmailFormat(val) : '' }))
+  }
+
+  const setCoGuest = (index, field, val) => {
+    setCoGuests(prev => prev.map((g, i) => i === index ? { ...g, [field]: val } : g))
+  }
+
+  const checkedCount = Object.values(checked).filter(Boolean).length
+  const allChecked   = rules.length > 0 && checkedCount === rules.length
+  const toggleRule = (id) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
+
+  const isPrimary = step === 'primary'
+
+  // ── Validity ────────────────────────────────────────────────────────────
+  const namesValid = form.firstName.trim() !== '' && form.lastName.trim() !== ''
+  const emailValid = isPrimary
+    ? (form.email.trim() !== '' && !validateEmailFormat(form.email))
+    : (form.email.trim() === '' || !validateEmailFormat(form.email))
+  const phoneValid = isPrimary
+    ? (form.phone.trim() !== '' && !validatePhone(form.phone))
+    : true
+  const coGuestsValid = !isPrimary || coGuests.every(g =>
+    g.firstName.trim() !== '' && g.lastName.trim() !== '' && String(g.age).trim() !== '' && !isNaN(Number(g.age))
+  )
+  const canSubmit = allChecked && namesValid && emailValid && phoneValid && coGuestsValid
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!canSubmit) return
+
+    const now = new Date()
+    const ts  = now.toLocaleString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`
+
+    const payload = {
+      propertySlug:         slug,
+      propertyName:         property.name,
+      checkinRole:          isPrimary ? 'primary' : 'guest',
+      firstName:            form.firstName.trim(),
+      lastName:             form.lastName.trim(),
+      guestName:            fullName,
+      primaryGuestName:     isPrimary ? fullName : '',
+      email:                form.email.trim() || '',
+      phone:                form.phone.trim() || '',
+      submittedAt:          now.toISOString(),
+      submittedAtFormatted: ts,
+      agreedRules:          rules.map(r => ({ id: r.id, title: r.title })),
+    }
+    if (isPrimary) {
+      payload.adultsCount = adultCount
+      payload.minorsCount = minorCount
+      payload.coGuests = coGuests.map(g => ({
+        firstName: g.firstName.trim(),
+        lastName:  g.lastName.trim(),
+        age:       Number(g.age),
+        isMinor:   Number(g.age) < 18,
+      }))
+    }
+
+    try {
+      await addDoc(collection(db, 'v2_checkins'), payload)
+    } catch (err) {
+      console.error('[Firestore] check-in save failed:', err)
+    }
+
+    setSubmittedData({ ...form, coGuests: isPrimary ? coGuests : [] })
+    setSubmitTime(ts)
+    setSubmitted(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // ── Screens ─────────────────────────────────────────────────────────────
+  // Check-in disabled by admin (Property Info → Check-In Page toggle)
+  if (property.checkInEnabled === false) {
+    return (
+      <NightModeCtx.Provider value={nightMode}>
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: t.BG }}>
+          <div className="text-center max-w-sm">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+              style={{ background: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+              <Icon name="lock" size={26} style={{ color: t.MUTED }} />
+            </div>
+            <h1 className="text-lg font-bold mb-1" style={{ color: t.TEXT }}>Check-in isn't available</h1>
+            <p className="text-[13px] mb-6" style={{ color: t.MUTED }}>
+              Online check-in is not enabled for this property. Please contact your host with any questions.
+            </p>
+            <Link to={`/v3/${slug}`}
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
+              style={{ color: t.PRIMARY }}>
+              <Icon name="arrow_back" size={14} /> Back to Guidebook
+            </Link>
+          </div>
+        </div>
+      </NightModeCtx.Provider>
+    )
+  }
+
+  if (submitted && submittedData) {
+    return (
+      <SuccessScreen
+        property={property} slug={slug} data={submittedData}
+        timestamp={submitTime} rules={rules} nightMode={nightMode}
+        offerText={offerText} isPrimary={isPrimary}
+      />
+    )
+  }
+
+  if (step === 'choice') {
+    return <ChoiceScreen property={property} slug={slug} nightMode={nightMode} onChoose={setStep} />
+  }
+
+  const countOptions = [...Array(16).keys()] // 0–15
+
+  return (
+    <NightModeCtx.Provider value={nightMode}>
+      <div className="min-h-screen" style={{ background: t.BG }}>
+        <div className="max-w-2xl mx-auto px-4 py-8">
+
+          <button onClick={() => setStep('choice')}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold mb-6 hover:opacity-75 transition-opacity"
+            style={{ color: t.PRIMARY }}>
+            <Icon name="arrow_back" size={14} /> Back
+          </button>
+
+          {/* Header card */}
+          <div className="rounded-2xl border p-5 mb-5" style={{ borderColor: t.BORDER, background: t.CARD }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                style={{ background: BLUE_GRAD }}>
+                <Icon name={isPrimary ? 'vpn_key' : 'group'} size={20} className="text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: t.PRIMARY }}>
+                  Check-In · {isPrimary ? 'Primary Booker' : 'Guest'}
+                </p>
+                <p className="font-bold text-[17px] leading-tight" style={{ color: t.TEXT }}>{property.name}</p>
+              </div>
+            </div>
+            <p className="text-[12px] mb-3" style={{ color: t.MUTED }}>{property.address}</p>
+            <div className="rounded-xl p-3" style={{
+              background: nightMode ? 'rgba(29,78,216,0.1)' : 'rgba(37,99,235,0.06)',
+              border: '1px solid rgba(37,99,235,0.2)',
+            }}>
+              <p className="text-[13px] leading-relaxed" style={{ color: t.TEXT }}>
+                {property.checkInWelcome || '👋 Welcome! Please review each house rule below and tap the checkbox next to every rule to confirm you\'ve read and agreed to it.'}
+              </p>
+            </div>
+          </div>
+
+          {/* House Rules */}
+          <RulesChecklist
+            rules={rules} checked={checked} toggleRule={toggleRule}
+            allChecked={allChecked} checkedCount={checkedCount} t={t} nightMode={nightMode}
+          />
+
+          {/* Agreement statement */}
+          <div className="rounded-2xl border p-5 mb-5" style={{
+            borderColor: 'rgba(5,150,105,0.25)',
+            background: nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.05)',
+          }}>
+            <p className="text-[13px] font-semibold mb-1" style={{ color: t.TEXT }}>By submitting, I confirm:</p>
+            <p className="text-[12px] leading-relaxed" style={{ color: t.MUTED }}>
+              I hereby agree to follow these rules & share that with all other guests going to stay in this property.
+              I understand that violations may result in fines or charges as described in the rules above.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit}>
+            <div className="rounded-2xl border p-5 mb-5 space-y-4" style={{ borderColor: t.BORDER, background: t.CARD }}>
+              <div>
+                <h3 className="font-bold text-[14px]" style={{ color: t.TEXT }}>Your Details</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>
+                  {isPrimary
+                    ? 'As the primary booker, please also list everyone staying with you.'
+                    : 'All guests must fill this individually using the same link.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput label="First Name" required t={t} nightMode={nightMode}
+                  type="text" value={form.firstName}
+                  onChange={(e) => setField('firstName', e.target.value)}
+                  placeholder="First name" />
+                <FormInput label="Last Name" required t={t} nightMode={nightMode}
+                  type="text" value={form.lastName}
+                  onChange={(e) => setField('lastName', e.target.value)}
+                  placeholder="Last name" />
+              </div>
+
+              <FormInput label="Email Address" required={isPrimary} optional={!isPrimary}
+                error={errors.email && form.email ? errors.email : ''} t={t} nightMode={nightMode}
+                type="email" value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="you@example.com" />
+
+              {isPrimary && (
+                <FormInput label="Phone Number" required
+                  error={errors.phone} t={t} nightMode={nightMode}
+                  type="tel" value={form.phone}
+                  onChange={(e) => setField('phone', e.target.value)}
+                  placeholder="+1 (608) 239-3574" />
+              )}
+            </div>
+
+            {/* Primary booker: group details */}
+            {isPrimary && (
+              <div className="rounded-2xl border p-5 mb-5 space-y-4" style={{ borderColor: t.BORDER, background: t.CARD }}>
+                <div>
+                  <h3 className="font-bold text-[14px]" style={{ color: t.TEXT }}>Who's Staying With You?</h3>
+                  <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>
+                    Don't count yourself — just the other guests staying at the property.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                      Adults (18+)
+                    </label>
+                    <select value={adultCount} onChange={e => setAdultCount(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                      style={{
+                        border: `1.5px solid ${t.BORDER}`,
+                        background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+                        color: t.TEXT,
+                      }}>
+                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                      Minors (under 18)
+                    </label>
+                    <select value={minorCount} onChange={e => setMinorCount(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                      style={{
+                        border: `1.5px solid ${t.BORDER}`,
+                        background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+                        color: t.TEXT,
+                      }}>
+                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {coGuests.length > 0 && (
+                  <div className="space-y-3 pt-1">
+                    {coGuests.map((g, i) => (
+                      <div key={i} className="rounded-xl p-3 space-y-2" style={{
+                        border: `1px solid ${t.BORDER}`,
+                        background: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(200,75,49,0.03)',
+                      }}>
+                        <p className="text-[11px] font-bold" style={{ color: t.PRIMARY }}>
+                          {g.isMinor
+                            ? `Minor ${i - adultCount + 1}`
+                            : `Adult ${i + 1}`}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="text" value={g.firstName}
+                            onChange={e => setCoGuest(i, 'firstName', e.target.value)}
+                            placeholder="First name"
+                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                          <input type="text" value={g.lastName}
+                            onChange={e => setCoGuest(i, 'lastName', e.target.value)}
+                            placeholder="Last name"
+                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                        </div>
+                        <input type="number" min={g.isMinor ? 0 : 18} max={g.isMinor ? 17 : 120} value={g.age}
+                          onChange={e => setCoGuest(i, 'age', e.target.value)}
+                          placeholder="Age"
+                          className="w-24 px-3 py-2 rounded-lg text-[12px] outline-none"
+                          style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Offer banner */}
+                {offerText && (
+                  <div className="rounded-xl p-3.5" style={{
+                    background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
+                    border: '1px solid rgba(37,99,235,0.25)',
+                  }}>
+                    <p className="text-[12px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Submit button */}
+            <button type="submit" disabled={!canSubmit}
+              className="w-full py-4 rounded-2xl text-[14px] font-bold transition-all duration-200"
+              style={{
+                background: canSubmit ? GREEN_GRAD : (nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
+                color: canSubmit ? 'white' : t.MUTED,
+                cursor: canSubmit ? 'pointer' : 'not-allowed',
+                boxShadow: canSubmit ? '0 4px 15px rgba(5,150,105,0.3)' : 'none',
+              }}>
+              {canSubmit
+                ? '✓  Complete Check-In'
+                : !allChecked
+                  ? `Please agree to all ${rules.length} rules above`
+                  : !namesValid
+                    ? 'Please fill in your first and last name'
+                    : isPrimary && !emailValid
+                      ? 'Please enter a valid email'
+                      : isPrimary && !phoneValid
+                        ? 'Please enter a valid phone number'
+                        : isPrimary && !coGuestsValid
+                          ? 'Please complete details for every guest'
+                          : 'Please check your details'}
+            </button>
+          </form>
+
+          <div className="h-12" />
+        </div>
+      </div>
+    </NightModeCtx.Provider>
+  )
+}

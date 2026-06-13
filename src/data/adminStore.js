@@ -17,7 +17,7 @@ export const adminStore = {
   // Auth (demo only — swap for Supabase Auth in production)
   isAuthenticated: () => localStorage.getItem('talo_admin_auth') === 'true',
   login: (email, password) => {
-    if (email === 'saari.joseph@gmail.com' && password === 'talo2026') {
+    if (email === 'joe@talo.ventures' && password === 'Mytalo@2026') {
       localStorage.setItem('talo_admin_auth', 'true')
       return true
     }
