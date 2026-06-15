@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { adminV3Store } from '../../data/adminV3Store'
 import Icon from '../../components/Icon'
+import ImagePicker from '../components/ImagePicker'
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '')
 const CAT_ALL = 'all'
@@ -115,23 +116,17 @@ function ActivityModal({ initial, categories, onSave, onClose }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Image URL</label>
-            <p className="text-[10px] text-slate-400 mb-1.5">Paste a direct image URL. Upload support coming with Supabase integration.</p>
-            <input
-              type="text"
-              value={form.imageUrl}
-              onChange={e => set('imageUrl', e.target.value)}
-              placeholder="https://example.com/photo.jpg"
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300"
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Photo</label>
+            <ImagePicker
+              value={form.imageUrl ? [{ src: form.imageUrl, path: form.imagePath }] : []}
+              slug="activities"
+              blockId={initial?.id || 'new-activity'}
+              maxImages={1}
+              onChange={imgs => {
+                const img = imgs[0]
+                setForm(f => ({ ...f, imageUrl: img?.src || '', imagePath: img?.path || undefined }))
+              }}
             />
-            {resolveImg(form.imageUrl) && (
-              <img
-                src={resolveImg(form.imageUrl)}
-                alt="Preview"
-                className="mt-2 w-full h-32 object-cover rounded-xl border border-slate-200"
-                onError={e => { e.currentTarget.style.display = 'none' }}
-              />
-            )}
           </div>
         </div>
 
