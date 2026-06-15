@@ -4,9 +4,14 @@ import { adminV3Store } from '../../data/adminV3Store'
 import { SECTIONS } from '../../data/sections'
 import Icon from '../../components/Icon'
 import BodyEditor from '../components/BodyEditor'
+import ImagePicker from '../components/ImagePicker'
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '')
-const imgUrl = p => (p ? `${BASE_URL}${p}` : p)
+const imgUrl = p => {
+  if (!p) return p
+  if (/^https?:\/\//i.test(p) || p.startsWith('data:') || p.startsWith('blob:')) return p
+  return `${BASE_URL}${p}`
+}
 
 const PLACE_SECTIONS = ['local_guide', 'things_to_do']
 const RULES_SECTION = 'house_rules'
@@ -130,16 +135,15 @@ function BlockCard({ block, isShared, slug, onSaved, onDeleted }) {
                   </div>
                 </div>
               )}
-              {(local.images || []).length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-2">Image Captions</label>
-                  <div className="space-y-2">
-                    {(local.images || []).map((img, idx) => (
-                      <ImageCaptionField key={idx} image={img} onChange={updated => updateImage(idx, updated)} />
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Images</label>
+                <ImagePicker
+                  value={local.images || []}
+                  slug={slug}
+                  blockId={block.id}
+                  onChange={imgs => update('images', imgs)}
+                />
+              </div>
               <div className="flex items-center justify-between pt-1">
                 <div>
                   {canDelete ? (

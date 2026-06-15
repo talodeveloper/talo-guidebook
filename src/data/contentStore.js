@@ -370,10 +370,9 @@ let _blocks = [
     title: 'First Floor Bedrooms',
     body: `<ul><li><strong>Bedroom 1:</strong> 1 Queen Bed</li><li><strong>Bedroom 2:</strong> 1 King Bed</li><li><strong>Bedroom 3:</strong> 1 Full Bed</li><li><strong>Bedroom 4:</strong> 2 Full Beds (Bunk Beds) + 1 Single Trundle</li><li><strong>TV Room:</strong> 1 Sofa Bed</li></ul><p><strong>Bathrooms (1F):</strong> 2 full bathrooms in the hall · 1 half bathroom near the laundry room.</p>`,
     images: [
-      { src: '/photos/hawk-street/p10_img1_848x567.jpeg', caption: 'Bedroom 1 — Queen Bed' },
-      { src: '/photos/hawk-street/p10_img2_848x567.jpeg', caption: 'Bedroom 2 — King Bed' },
-      { src: '/photos/hawk-street/p10_img3_848x567.jpeg', caption: 'Bedroom 3 — Full Bed' },
-      { src: '/photos/hawk-street/p10_img4_848x567.jpeg', caption: 'Bedroom 4 — Bunk Beds' },
+      { src: '/photos/hawk-street/p10_img2_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+      { src: '/photos/hawk-street/p10_img3_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+      { src: '/photos/hawk-street/p10_img1_848x567.jpeg', caption: 'Bedroom 4 — Bunk Beds' },
     ],
     order: 1,
   },
@@ -385,10 +384,8 @@ let _blocks = [
     title: 'Second Floor Bedrooms',
     body: `<ul><li><strong>Bedroom 1:</strong> 1 Queen Bed</li><li><strong>Bedroom 2:</strong> 1 Queen Bed</li><li><strong>Bedroom 3:</strong> 2 Queen Beds</li><li><strong>Main Living Room:</strong> 2 Queen Size Sofa Beds</li></ul><p><strong>Bathrooms (2F):</strong> 2 full bathrooms in the hallway across from the bedrooms.</p>`,
     images: [
-      { src: '/photos/hawk-street/p13_img1_848x567.jpeg', caption: '2F Bedroom 1 — Queen Bed' },
-      { src: '/photos/hawk-street/p13_img2_848x567.jpeg', caption: '2F Bedroom 2 — Queen Bed' },
-      { src: '/photos/hawk-street/p13_img3_848x567.jpeg', caption: '2F Bedroom 3 — 2 Queen Beds' },
-      { src: '/photos/hawk-street/p13_img4_848x567.jpeg', caption: '2F Common Area — Queen Sofa Beds' },
+      { src: '/photos/hawk-street/p13_img3_848x567.jpeg', caption: '2F Bedroom — Queen Bed' },
+      { src: '/photos/hawk-street/p13_img4_848x567.jpeg', caption: '2F Bedroom — 2 Queen Beds' },
     ],
     order: 2,
   },
@@ -2040,20 +2037,114 @@ let _blocks = [
 
 const STORAGE_KEY = 'talo_content_blocks_v8'
 
+// One-time fix for the Hawk Street bedroom image mismatches that shipped in
+// earlier datasets (bathroom and living-room photos appeared in the bedroom
+// grid). Only rewrites blocks whose image arrays still match the original
+// known-broken signature — preserves any admin edits.
+function _migrateHawkBedroomImages(blocks) {
+  // Each entry: block id, signature of the original (broken) image srcs, and the corrected images array.
+  const FIXES = [
+    {
+      id: 'space-hawk-bedrooms-1f',
+      sig: [
+        '/photos/hawk-street/p10_img1_848x567.jpeg',
+        '/photos/hawk-street/p10_img2_848x567.jpeg',
+        '/photos/hawk-street/p10_img3_848x567.jpeg',
+        '/photos/hawk-street/p10_img4_848x567.jpeg',
+      ],
+      images: [
+        { src: '/photos/hawk-street/p10_img2_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+        { src: '/photos/hawk-street/p10_img3_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+        { src: '/photos/hawk-street/p10_img1_848x567.jpeg', caption: 'Bedroom 4 — Bunk Beds' },
+      ],
+    },
+    {
+      id: 'space-hawk-bedrooms-2f',
+      sig: [
+        '/photos/hawk-street/p13_img1_848x567.jpeg',
+        '/photos/hawk-street/p13_img2_848x567.jpeg',
+        '/photos/hawk-street/p13_img3_848x567.jpeg',
+        '/photos/hawk-street/p13_img4_848x567.jpeg',
+      ],
+      images: [
+        { src: '/photos/hawk-street/p13_img3_848x567.jpeg', caption: '2F Bedroom — Queen Bed' },
+        { src: '/photos/hawk-street/p13_img4_848x567.jpeg', caption: '2F Bedroom — 2 Queen Beds' },
+      ],
+    },
+    {
+      id: 'space-hawk-outdoor',
+      sig: [
+        '/photos/hawk-street/p16_img1_831x555.jpeg',
+        '/photos/hawk-street/p16_img2_1272x850.jpeg',
+        '/photos/hawk-street/p16_img3_831x555.jpeg',
+        '/photos/hawk-street/p16_img4_1272x850.jpeg',
+      ],
+      images: [
+        { src: '/photos/hawk-street/p16_img1_831x555.jpeg', caption: 'Balcony — BBQ & City Views' },
+        { src: '/photos/hawk-street/p16_img2_1272x850.jpeg', caption: 'Outdoor Patio — Sunset Views' },
+        { src: '/photos/hawk-street/p16_img4_1272x850.jpeg', caption: 'Covered Patio & Bar' },
+      ],
+    },
+    {
+      id: 'space-reynard-bedrooms',
+      sig: [
+        '/photos/reynard-way/p9_img1_504x336.png',
+        '/photos/reynard-way/p9_img2_504x336.png',
+        '/photos/reynard-way/p9_img3_504x336.png',
+        '/photos/reynard-way/p9_img4_504x334.png',
+      ],
+      images: [
+        { src: '/photos/reynard-way/p9_img1_504x336.png', caption: 'Bedroom 1 — Queen Bed' },
+        { src: '/photos/reynard-way/p9_img2_504x336.png', caption: 'Bedroom 2 — Queen Bed' },
+        { src: '/photos/reynard-way/p9_img4_504x334.png', caption: 'Bedroom 4 — Full Beds (Master)' },
+      ],
+    },
+    {
+      id: 'space-reynard-studio',
+      sig: [
+        '/photos/reynard-way/p12_img1_504x336.png',
+        '/photos/reynard-way/p12_img2_504x335.png',
+        '/photos/reynard-way/p12_img3_600x398.png',
+        '/photos/reynard-way/p12_img4_504x336.png',
+      ],
+      images: [
+        { src: '/photos/reynard-way/p12_img1_504x336.png', caption: 'Studio — Kitchenette' },
+        { src: '/photos/reynard-way/p12_img3_600x398.png', caption: 'Studio — Seating Area & Murphy Bed' },
+        { src: '/photos/reynard-way/p12_img4_504x336.png', caption: 'Studio — Overview' },
+      ],
+    },
+  ]
+  return blocks.map(b => {
+    const fix = FIXES.find(f => f.id === b.id)
+    if (!fix) return b
+    const srcs = (b.images || []).map(i => i.src)
+    if (srcs.length === fix.sig.length && srcs.every((s, i) => s === fix.sig[i])) {
+      return { ...b, images: fix.images }
+    }
+    return b
+  })
+}
+
 // Priority 1: admin v2 published data (highest authority)
 const _adminV2Raw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_admin_v2_live') : null
 if (_adminV2Raw) {
   try {
     const _adminV2Live = JSON.parse(_adminV2Raw)
-    if (Array.isArray(_adminV2Live?.blocks)) _blocks = _adminV2Live.blocks
+    if (Array.isArray(_adminV2Live?.blocks)) {
+      _blocks = _migrateHawkBedroomImages(_adminV2Live.blocks)
+      _adminV2Live.blocks = _blocks
+      try { localStorage.setItem('talo_admin_v2_live', JSON.stringify(_adminV2Live)) } catch {}
+    }
   } catch {}
 } else {
   // Priority 2: legacy admin v1 key
   const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
   if (_savedRaw) {
-    try { _blocks = JSON.parse(_savedRaw) } catch {}
+    try { _blocks = _migrateHawkBedroomImages(JSON.parse(_savedRaw)) } catch {}
   }
 }
+// Always apply migration to in-memory defaults too, so a fresh install is correct.
+_blocks = _migrateHawkBedroomImages(_blocks)
 
 function _persist() {
   try {
@@ -2120,7 +2211,7 @@ export const contentStore = {
 
   reloadFromLive: (blocks) => {
     if (Array.isArray(blocks)) {
-      _blocks = [...blocks]
+      _blocks = _migrateHawkBedroomImages([...blocks])
       notify()
     }
   },

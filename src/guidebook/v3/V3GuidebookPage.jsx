@@ -31,7 +31,11 @@ export function buildGuidebookSections(v3data, slug) {
   return out
 }
 
-const imgUrl = (path) => path ? `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}` : path
+const imgUrl = (path) => {
+  if (!path) return path
+  if (/^https?:\/\//i.test(path) || path.startsWith('data:') || path.startsWith('blob:')) return path
+  return `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}`
+}
 // Resolve activity imageUrl: local paths get BASE_URL prefix, external URLs pass through
 const resolveImg = (url) => {
   if (!url) return null
@@ -438,7 +442,9 @@ export default function V3GuidebookPage() {
     TEXT:     nightMode ? N_TEXT      : TEXT,
     SUNSET:   nightMode ? N_SUNSET    : SUNSET,
     OCEAN:    nightMode ? N_OCEAN     : OCEAN,
-    HERO_IMG: nightMode ? imgUrl('/images/nightview.png') : imgUrl('/images/newhero.png'),
+    HERO_IMG: nightMode
+      ? (property.heroImageNight ? imgUrl(property.heroImageNight) : imgUrl('/images/nightview.png'))
+      : (property.heroImage ? imgUrl(property.heroImage) : imgUrl('/images/newhero.png')),
   }
 
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { adminV3Store } from '../../data/adminV3Store'
 import Icon from '../../components/Icon'
+import ImagePicker from '../components/ImagePicker'
 
 function Field({ label, hint, children }) {
   return (
@@ -112,6 +113,50 @@ export default function PropertyInfoV3() {
       </div>
 
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Property Info</h1>
+
+      {/* Hero banner image */}
+      <Card title="Hero Banner Image" icon="image">
+        <p className="text-[12px] text-slate-500 mb-3">
+          Optional. Replaces the default sunset/night banner at the top of the guidebook for this property only.
+          Leave blank to use the global default. Upload a separate <strong>night-mode</strong> image to swap when guests toggle night.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Day mode</p>
+            <ImagePicker
+              value={info.heroImage ? [{ src: info.heroImage, path: info.heroImagePath }] : []}
+              slug={slug}
+              blockId="hero-day"
+              maxImages={1}
+              onChange={imgs => {
+                const img = imgs[0]
+                adminV3Store.updatePropertyInfo(slug, {
+                  heroImage: img?.src || null,
+                  heroImagePath: img?.path || null,
+                })
+                setInfo(adminV3Store.getPropertyInfo(slug))
+              }}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Night mode</p>
+            <ImagePicker
+              value={info.heroImageNight ? [{ src: info.heroImageNight, path: info.heroImageNightPath }] : []}
+              slug={slug}
+              blockId="hero-night"
+              maxImages={1}
+              onChange={imgs => {
+                const img = imgs[0]
+                adminV3Store.updatePropertyInfo(slug, {
+                  heroImageNight: img?.src || null,
+                  heroImageNightPath: img?.path || null,
+                })
+                setInfo(adminV3Store.getPropertyInfo(slug))
+              }}
+            />
+          </div>
+        </div>
+      </Card>
 
       {/* Property Details */}
       <Card title="Property Details" icon="home" saved={detailsSaved}

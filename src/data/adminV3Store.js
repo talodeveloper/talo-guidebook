@@ -1,6 +1,22 @@
 import { contentStore } from './contentStore'
 import { properties as defaultProperties } from './properties'
 import { FAQ_DATA as defaultFaq } from './faqData'
+import { db } from '../firebase'
+import { doc, setDoc } from 'firebase/firestore'
+
+// Push a live snapshot to Firestore so the cross-tab/cross-session listener
+// can't overwrite our changes with stale data. Best-effort — failure here
+// must not block the local publish, since the local data is already saved.
+async function pushToFirestore(live) {
+  try {
+    await setDoc(doc(db, 'v2_content', 'blocks'), { data: live.blocks })
+    if (live.properties) {
+      await setDoc(doc(db, 'v2_content', 'properties'), live.properties)
+    }
+  } catch (err) {
+    console.warn('[adminV3Store] Firestore push failed:', err)
+  }
+}
 
 export const ADMIN_V3_LIVE_KEY = 'talo_admin_v3_live'
 const DRAFT_KEY = 'talo_admin_v3_draft'
@@ -156,6 +172,10 @@ function buildDefaultPropertyInfo(slug) {
     showHostCard: true,
     checkInEnabled: true,
     showCheckoutTimeBanner: true,
+    // Optional per-property hero banner. When null, the global default hero
+    // (newhero.png / nightview.png) renders instead.
+    heroImage: null,
+    heroImageNight: null,
   }
 }
 
@@ -253,6 +273,55 @@ function migrateFaqStructures(draft) {
   return draft
 }
 
+// One-time fix for Hawk Street bedroom image mismatches that shipped in earlier
+// drafts (bathroom and living room photos were in the bedrooms grid). Only
+// rewrites blocks whose images still match the original broken array — admin
+// edits are left untouched.
+const HAWK_1F_BAD = [
+  '/photos/hawk-street/p10_img1_848x567.jpeg',
+  '/photos/hawk-street/p10_img2_848x567.jpeg',
+  '/photos/hawk-street/p10_img3_848x567.jpeg',
+  '/photos/hawk-street/p10_img4_848x567.jpeg',
+]
+const HAWK_1F_FIX = [
+  { src: '/photos/hawk-street/p10_img2_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+  { src: '/photos/hawk-street/p10_img3_848x567.jpeg', caption: 'Bedroom — Queen Bed' },
+  { src: '/photos/hawk-street/p10_img1_848x567.jpeg', caption: 'Bedroom 4 — Bunk Beds' },
+]
+const HAWK_2F_BAD = [
+  '/photos/hawk-street/p13_img1_848x567.jpeg',
+  '/photos/hawk-street/p13_img2_848x567.jpeg',
+  '/photos/hawk-street/p13_img3_848x567.jpeg',
+  '/photos/hawk-street/p13_img4_848x567.jpeg',
+]
+const HAWK_2F_FIX = [
+  { src: '/photos/hawk-street/p13_img3_848x567.jpeg', caption: '2F Bedroom — Queen Bed' },
+  { src: '/photos/hawk-street/p13_img4_848x567.jpeg', caption: '2F Bedroom — 2 Queen Beds' },
+]
+function migrateHawkBedroomImages(data, persistKey) {
+  if (!data?.blocks) return data
+  let changed = false
+  data.blocks = data.blocks.map(b => {
+    if (b.id === 'space-hawk-bedrooms-1f') {
+      const srcs = (b.images || []).map(i => i.src)
+      if (srcs.length === HAWK_1F_BAD.length && srcs.every((s, i) => s === HAWK_1F_BAD[i])) {
+        changed = true
+        return { ...b, images: HAWK_1F_FIX }
+      }
+    }
+    if (b.id === 'space-hawk-bedrooms-2f') {
+      const srcs = (b.images || []).map(i => i.src)
+      if (srcs.length === HAWK_2F_BAD.length && srcs.every((s, i) => s === HAWK_2F_BAD[i])) {
+        changed = true
+        return { ...b, images: HAWK_2F_FIX }
+      }
+    }
+    return b
+  })
+  if (changed && persistKey) writeJSON(persistKey, data)
+  return data
+}
+
 // Patch existing draft activities with imageUrls from seed (migration for already-stored drafts)
 function migrateImages(draft) {
   if (!draft?.activities) return draft
@@ -281,6 +350,8 @@ if (!_draft) {
   _draft = migrateImages(_draft)
 }
 _draft = migrateFaqStructures(_draft)
+_draft = migrateHawkBedroomImages(_draft, DRAFT_KEY)
+if (_live) _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
 // Seed dynamic activity categories for drafts created before they were data-driven
 if (_draft && !_draft.activityCategories) {
   _draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
@@ -387,6 +458,11 @@ export const adminV3Store = {
         changes.push({ label: 'Hidden Blocks', property: propName(slug) })
       }
     }
+    for (const slug of slugs) {
+      if (JSON.stringify(_draft?.propertyImageOverrides?.[slug]) !== JSON.stringify(_live?.propertyImageOverrides?.[slug])) {
+        changes.push({ label: 'Images', property: propName(slug) })
+      }
+    }
     return changes
   },
 
@@ -463,6 +539,49 @@ export const adminV3Store = {
       [slug]: current.includes(blockId)
         ? current.filter(id => id !== blockId)
         : [...current, blockId],
+    }
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+  },
+
+  // ── Per-property image overrides (admin-uploaded replacements) ───────────
+  //
+  // Shape: propertyImageOverrides[slug][blockId] = [{ src, caption, path? }]
+  //   - `src` is a Firebase Storage download URL or a static /photos/... path
+  //   - `path` is the Storage object path (only present for uploaded images)
+  //
+  // Resolution: if an override exists for (slug, blockId), it FULLY replaces
+  // the block's default images array. Otherwise the static defaults render.
+
+  getBlockImages(slug, blockId, defaultImages) {
+    const override = _draft?.propertyImageOverrides?.[slug]?.[blockId]
+    return Array.isArray(override) ? override : (defaultImages || [])
+  },
+
+  hasImageOverride(slug, blockId) {
+    return Array.isArray(_draft?.propertyImageOverrides?.[slug]?.[blockId])
+  },
+
+  setBlockImages(slug, blockId, images) {
+    if (!_draft.propertyImageOverrides) _draft.propertyImageOverrides = {}
+    _draft.propertyImageOverrides = {
+      ..._draft.propertyImageOverrides,
+      [slug]: {
+        ...(_draft.propertyImageOverrides[slug] || {}),
+        [blockId]: images,
+      },
+    }
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+  },
+
+  clearBlockImages(slug, blockId) {
+    if (!_draft.propertyImageOverrides?.[slug]) return
+    const next = { ...(_draft.propertyImageOverrides[slug] || {}) }
+    delete next[blockId]
+    _draft.propertyImageOverrides = {
+      ..._draft.propertyImageOverrides,
+      [slug]: next,
     }
     writeJSON(DRAFT_KEY, _draft)
     notify()
@@ -889,6 +1008,7 @@ export const adminV3Store = {
     if (_draft.propertyBlockOrder) delete _draft.propertyBlockOrder[slug]
     if (_draft.propertySectionConfig) delete _draft.propertySectionConfig[slug]
     if (_draft.disabledBlocks) delete _draft.disabledBlocks[slug]
+    if (_draft.propertyImageOverrides) delete _draft.propertyImageOverrides[slug]
     _draft.blocks = (_draft.blocks || []).filter(
       b => !(b.type === 'property' && b.propertySlug === slug)
     )
@@ -914,6 +1034,15 @@ export const adminV3Store = {
   publish() {
     _live = JSON.parse(JSON.stringify(_draft))
     writeJSON(ADMIN_V3_LIVE_KEY, _live)
+    // Mirror to V2 live so `contentStore` (which reads V2) sees it on fresh
+    // page loads.
+    try {
+      const v2Live = readJSON('talo_admin_v2_live') || {}
+      writeJSON('talo_admin_v2_live', { ...v2Live, blocks: _live.blocks })
+    } catch (e) { /* ignore */ }
+    // Push to Firestore so the real-time listener doesn't overwrite our
+    // changes with stale server data on the next page load. Fire and forget.
+    pushToFirestore(_live)
     contentStore.reloadFromLive(_live.blocks)
     notify()
   },
