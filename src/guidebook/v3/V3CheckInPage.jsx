@@ -479,7 +479,7 @@ export default function V3CheckInPage() {
     return <ChoiceScreen property={property} slug={slug} nightMode={nightMode} onChoose={setStep} />
   }
 
-  const countOptions = [...Array(16).keys()] // 0–15
+  const countOptions = [...Array(31).keys()] // 0–30
 
   return (
     <NightModeCtx.Provider value={nightMode}>
