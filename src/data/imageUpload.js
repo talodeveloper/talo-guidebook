@@ -1,15 +1,28 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../firebase'
 
-// Visual quality bar — uploads outside these limits are rejected or warned.
-const MIN_WIDTH = 1000
-const MIN_HEIGHT = 700
-const WARN_WIDTH = 1600
-const WARN_HEIGHT = 1200
-const MAX_DIMENSION = 1600          // compress wider than this
+// Validation profiles — each upload picks one matching its render context.
+// `default` is for property/activity grid images. `hero` is for wide banner
+// images (much wider aspect, lower min height).
+const PROFILES = {
+  default: {
+    minWidth: 1000, minHeight: 700,
+    warnWidth: 1600, warnHeight: 1200,
+    maxDimension: 1600,
+    aspectMin: 1 / 3, aspectMax: 3,
+    aspectHelp: 'Use a normal photo shape (not panoramic or tall-strip).',
+  },
+  hero: {
+    minWidth: 1600, minHeight: 300,
+    warnWidth: 2000, warnHeight: 360,
+    maxDimension: 2400,
+    aspectMin: 3.5, aspectMax: 8,
+    aspectHelp: 'Hero banner must be wide — width should be 3.5× to 8× the height (e.g. 2000×400).',
+  },
+}
+
 const JPEG_QUALITY = 0.85
 const MAX_RAW_BYTES = 20 * 1024 * 1024
-const MAX_ASPECT_RATIO = 3          // reject if W/H or H/W exceeds this
 
 const ALLOWED_TYPES = new Set([
   'image/jpeg',
@@ -32,26 +45,26 @@ function loadImage(file) {
 }
 
 // Inspect dimensions + aspect ratio. Returns { warning } or throws on hard reject.
-function validateImage(img) {
-  if (img.width < MIN_WIDTH || img.height < MIN_HEIGHT) {
+function validateImage(img, profile) {
+  if (img.width < profile.minWidth || img.height < profile.minHeight) {
     throw new Error(
-      `Image too small (${img.width}×${img.height}). Minimum is ${MIN_WIDTH}×${MIN_HEIGHT} pixels — please use a higher-resolution photo.`
+      `Image too small (${img.width}×${img.height}). Minimum is ${profile.minWidth}×${profile.minHeight} pixels.`
     )
   }
-  const ratio = Math.max(img.width / img.height, img.height / img.width)
-  if (ratio > MAX_ASPECT_RATIO) {
+  const aspect = img.width / img.height
+  if (aspect < profile.aspectMin || aspect > profile.aspectMax) {
     throw new Error(
-      `Image is too narrow or too wide (${img.width}×${img.height}). Please crop closer to a normal photo shape before uploading.`
+      `Image shape doesn't fit here (${img.width}×${img.height}, ratio ${aspect.toFixed(1)}:1). ${profile.aspectHelp}`
     )
   }
-  const warning = (img.width < WARN_WIDTH || img.height < WARN_HEIGHT)
-    ? `This image is ${img.width}×${img.height} — it will work but may look soft on the welcome card. ${WARN_WIDTH}×${WARN_HEIGHT} or larger is ideal.`
+  const warning = (img.width < profile.warnWidth || img.height < profile.warnHeight)
+    ? `This image is ${img.width}×${img.height} — it will work but may look soft. ${profile.warnWidth}×${profile.warnHeight} or larger is ideal.`
     : null
   return { warning }
 }
 
-async function compressImage(img, sourceFile) {
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height))
+async function compressImage(img, sourceFile, profile) {
+  const scale = Math.min(1, profile.maxDimension / Math.max(img.width, img.height))
   // No shrink needed AND already reasonably small — keep original bytes
   if (scale === 1 && sourceFile.size < 600 * 1024) return sourceFile
 
@@ -70,7 +83,7 @@ async function compressImage(img, sourceFile) {
   })
 }
 
-export async function uploadPropertyImage({ slug, blockId, file, onProgress }) {
+export async function uploadPropertyImage({ slug, blockId, file, onProgress, profile = 'default' }) {
   if (!file) throw new Error('No file selected')
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error('Only JPEG, PNG, or WebP images are allowed. GIFs and SVGs are not supported.')
@@ -79,12 +92,14 @@ export async function uploadPropertyImage({ slug, blockId, file, onProgress }) {
     throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 20 MB.`)
   }
 
+  const prof = PROFILES[profile] || PROFILES.default
+
   onProgress?.(5)
   const img = await loadImage(file)
-  const { warning } = validateImage(img)
+  const { warning } = validateImage(img, prof)
   onProgress?.(20)
 
-  const compressed = await compressImage(img, file)
+  const compressed = await compressImage(img, file, prof)
   onProgress?.(50)
 
   const safeName = (file.name || 'upload.jpg').replace(/[^a-zA-Z0-9._-]/g, '_')

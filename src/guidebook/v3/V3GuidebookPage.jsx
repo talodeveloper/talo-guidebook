@@ -442,9 +442,18 @@ export default function V3GuidebookPage() {
     TEXT:     nightMode ? N_TEXT      : TEXT,
     SUNSET:   nightMode ? N_SUNSET    : SUNSET,
     OCEAN:    nightMode ? N_OCEAN     : OCEAN,
-    HERO_IMG: nightMode
-      ? (property.v3HeroImageNight ? imgUrl(property.v3HeroImageNight) : imgUrl('/images/nightview.png'))
-      : (property.v3HeroImage ? imgUrl(property.v3HeroImage) : imgUrl('/images/newhero.png')),
+    HERO_IMG: (() => {
+      const v3data = readV3Data()
+      const gh = v3data?.globalHero || {}
+      if (nightMode) {
+        if (property.v3HeroImageNight) return imgUrl(property.v3HeroImageNight)
+        if (gh.night) return imgUrl(gh.night)
+        return imgUrl('/images/nightview.png')
+      }
+      if (property.v3HeroImage) return imgUrl(property.v3HeroImage)
+      if (gh.day) return imgUrl(gh.day)
+      return imgUrl('/images/newhero.png')
+    })(),
   }
 
   useEffect(() => {

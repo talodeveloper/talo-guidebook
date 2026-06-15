@@ -216,6 +216,10 @@ function buildDefaultDraft() {
     propertyCuration,
     propertyList: BASE_PROPERTY_SLUGS.map(s => ({ slug: s, status: 'active' })),
     propertySections: {},  // per-property section overrides (for new properties)
+    // Global hero banner — fallback when a property has no v3HeroImage set.
+    // Each field is null until admin uploads, in which case the built-in
+    // /images/newhero.png and /images/nightview.png are used.
+    globalHero: { day: null, dayPath: null, night: null, nightPath: null },
   }
 }
 
@@ -465,6 +469,9 @@ export const adminV3Store = {
         changes.push({ label: 'Images', property: propName(slug) })
       }
     }
+    if (JSON.stringify(_draft?.globalHero) !== JSON.stringify(_live?.globalHero)) {
+      changes.push({ label: 'Global Hero Banner', property: 'Global' })
+    }
     return changes
   },
 
@@ -614,6 +621,18 @@ export const adminV3Store = {
   setFaq(slug, items) {
     if (!_draft.faq) _draft.faq = {}
     _draft.faq[slug] = items
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+  },
+
+  // ── Global hero banner ─────────────────────────────────────────────────────
+
+  getGlobalHero() {
+    return _draft?.globalHero || { day: null, dayPath: null, night: null, nightPath: null }
+  },
+
+  setGlobalHero(updates) {
+    _draft.globalHero = { ...(_draft.globalHero || {}), ...updates }
     writeJSON(DRAFT_KEY, _draft)
     notify()
   },
@@ -1053,6 +1072,15 @@ export const adminV3Store = {
     _draft = _live ? JSON.parse(JSON.stringify(_live)) : buildDefaultDraft()
     writeJSON(DRAFT_KEY, _draft)
     notify()
+  },
+
+  // ── Read-only helpers (used by guidebook side, not just admin) ────────────
+
+  // Reads the published global hero from V3 live; falls back to draft so
+  // newly-uploaded heroes preview correctly before publish.
+  readPublishedGlobalHero() {
+    const src = _live?.globalHero || _draft?.globalHero
+    return src || { day: null, dayPath: null, night: null, nightPath: null }
   },
 
   // ── Subscriptions ─────────────────────────────────────────────────────────

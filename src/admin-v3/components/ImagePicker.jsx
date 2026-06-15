@@ -15,7 +15,7 @@ const resolveSrc = (p) => {
 //   slug:     property slug
 //   blockId:  unique key (used for storage path)
 //   maxImages: cap if provided
-export default function ImagePicker({ value = [], onChange, slug, blockId, maxImages = 12 }) {
+export default function ImagePicker({ value = [], onChange, slug, blockId, maxImages = 12, profile = 'default' }) {
   const fileRef = useRef(null)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -32,7 +32,7 @@ export default function ImagePicker({ value = [], onChange, slug, blockId, maxIm
     for (const file of list) {
       try {
         const { url, path, warning: w } = await uploadPropertyImage({
-          slug, blockId, file, onProgress: setProgress,
+          slug, blockId, file, onProgress: setProgress, profile,
         })
         nextItems.push({ src: url, caption: '', path })
         if (w) warnings.push(`${file.name}: ${w}`)

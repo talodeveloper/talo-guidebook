@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { adminV3Store } from '../../data/adminV3Store'
+import ImagePicker from '../components/ImagePicker'
 import Icon from '../../components/Icon'
 import { RichTextEditor } from '../components/BodyEditor'
 
@@ -192,10 +193,12 @@ function GlobalFaqCard({ item, onReload }) {
 export default function GlobalContentV3() {
   const [blocks, setBlocks] = useState([])
   const [globalFaq, setGlobalFaq] = useState([])
+  const [globalHero, setGlobalHero] = useState(adminV3Store.getGlobalHero())
 
   const load = useCallback(() => {
     setBlocks(adminV3Store.getBlocksForSection('house_rules', null).filter(b => b.type === 'shared'))
     setGlobalFaq(adminV3Store.getGlobalFaq())
+    setGlobalHero(adminV3Store.getGlobalHero())
   }, [])
 
   useEffect(() => { load(); return adminV3Store.subscribe(load) }, [load])
@@ -224,6 +227,68 @@ export default function GlobalContentV3() {
         <p className="text-xs text-amber-700">
           These rules appear in the <strong>House Rules</strong> section of every guidebook. Changes here affect all properties at once.
         </p>
+      </div>
+
+      {/* ── Global Hero Banner ───────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-2 mt-2">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #7C2D12, #C84B31)' }}>
+          <Icon name="panorama" size={18} className="text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Global Hero Banner</h2>
+          <p className="text-xs text-slate-500">Top-of-page banner shown when a property has no per-property hero set</p>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-12 mt-4">
+        <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4 flex items-start gap-2">
+          <Icon name="info" size={13} className="text-blue-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-blue-700">
+            Hero is a wide banner. Upload <strong>at least 1600×300px</strong>, aspect ratio between 3.5:1 and 8:1
+            (e.g. 2172×388 matches the original). Each properties admin can override this with their own hero in Property Info.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Day mode</p>
+            <ImagePicker
+              value={globalHero.day ? [{ src: globalHero.day, path: globalHero.dayPath }] : []}
+              slug="global"
+              blockId="hero-day"
+              maxImages={1}
+              profile="hero"
+              onChange={imgs => {
+                const img = imgs[0]
+                adminV3Store.setGlobalHero({ day: img?.src || null, dayPath: img?.path || null })
+              }}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Night mode</p>
+            <ImagePicker
+              value={globalHero.night ? [{ src: globalHero.night, path: globalHero.nightPath }] : []}
+              slug="global"
+              blockId="hero-night"
+              maxImages={1}
+              profile="hero"
+              onChange={imgs => {
+                const img = imgs[0]
+                adminV3Store.setGlobalHero({ night: img?.src || null, nightPath: img?.path || null })
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Global House Rules ───────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-2 mt-2">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+          <Icon name="gavel" size={18} className="text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Global House Rules</h2>
+        </div>
       </div>
 
       <div className="space-y-2 mb-4">
