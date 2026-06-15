@@ -172,10 +172,12 @@ function buildDefaultPropertyInfo(slug) {
     showHostCard: true,
     checkInEnabled: true,
     showCheckoutTimeBanner: true,
-    // Optional per-property hero banner. When null, the global default hero
-    // (newhero.png / nightview.png) renders instead.
-    heroImage: null,
-    heroImageNight: null,
+    // Optional per-property V3 hero banner. When null, the global default
+    // hero (newhero.png / nightview.png) renders instead. Named v3HeroImage
+    // to avoid colliding with the legacy `heroImage` field on V1/V2 property
+    // data, which points at interior photos used by older guidebook versions.
+    v3HeroImage: null,
+    v3HeroImageNight: null,
   }
 }
 

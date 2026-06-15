@@ -443,8 +443,8 @@ export default function V3GuidebookPage() {
     SUNSET:   nightMode ? N_SUNSET    : SUNSET,
     OCEAN:    nightMode ? N_OCEAN     : OCEAN,
     HERO_IMG: nightMode
-      ? (property.heroImageNight ? imgUrl(property.heroImageNight) : imgUrl('/images/nightview.png'))
-      : (property.heroImage ? imgUrl(property.heroImage) : imgUrl('/images/newhero.png')),
+      ? (property.v3HeroImageNight ? imgUrl(property.v3HeroImageNight) : imgUrl('/images/nightview.png'))
+      : (property.v3HeroImage ? imgUrl(property.v3HeroImage) : imgUrl('/images/newhero.png')),
   }
 
   useEffect(() => {

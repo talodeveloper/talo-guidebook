@@ -124,15 +124,15 @@ export default function PropertyInfoV3() {
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-2">Day mode</p>
             <ImagePicker
-              value={info.heroImage ? [{ src: info.heroImage, path: info.heroImagePath }] : []}
+              value={info.v3HeroImage ? [{ src: info.v3HeroImage, path: info.v3HeroImagePath }] : []}
               slug={slug}
               blockId="hero-day"
               maxImages={1}
               onChange={imgs => {
                 const img = imgs[0]
                 adminV3Store.updatePropertyInfo(slug, {
-                  heroImage: img?.src || null,
-                  heroImagePath: img?.path || null,
+                  v3HeroImage: img?.src || null,
+                  v3HeroImagePath: img?.path || null,
                 })
                 setInfo(adminV3Store.getPropertyInfo(slug))
               }}
@@ -141,15 +141,15 @@ export default function PropertyInfoV3() {
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-2">Night mode</p>
             <ImagePicker
-              value={info.heroImageNight ? [{ src: info.heroImageNight, path: info.heroImageNightPath }] : []}
+              value={info.v3HeroImageNight ? [{ src: info.v3HeroImageNight, path: info.v3HeroImageNightPath }] : []}
               slug={slug}
               blockId="hero-night"
               maxImages={1}
               onChange={imgs => {
                 const img = imgs[0]
                 adminV3Store.updatePropertyInfo(slug, {
-                  heroImageNight: img?.src || null,
-                  heroImageNightPath: img?.path || null,
+                  v3HeroImageNight: img?.src || null,
+                  v3HeroImageNightPath: img?.path || null,
                 })
                 setInfo(adminV3Store.getPropertyInfo(slug))
               }}
