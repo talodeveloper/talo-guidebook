@@ -29,12 +29,14 @@ export default function ImagePicker({ value = [], onChange, slug, blockId, maxIm
     setBusy(true)
     const nextItems = [...value]
     const warnings = []
+    let added = 0
     for (const file of list) {
       try {
         const { url, path, warning: w } = await uploadPropertyImage({
           slug, blockId, file, onProgress: setProgress, profile,
         })
         nextItems.push({ src: url, caption: '', path })
+        added += 1
         if (w) warnings.push(`${file.name}: ${w}`)
       } catch (err) {
         setError(err.message || 'Upload failed')
@@ -43,7 +45,10 @@ export default function ImagePicker({ value = [], onChange, slug, blockId, maxIm
     setBusy(false)
     setProgress(0)
     if (warnings.length) setWarning(warnings.join(' · '))
-    onChange?.(nextItems)
+    // Only notify the parent (and dirty the draft) if at least one upload
+    // actually succeeded. Otherwise a rejected upload would still activate
+    // the Publish button even though nothing changed.
+    if (added > 0) onChange?.(nextItems)
   }
 
   const handleReplace = async (idx, file) => {
