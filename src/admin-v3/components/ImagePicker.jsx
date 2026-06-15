@@ -2,6 +2,13 @@ import { useRef, useState } from 'react'
 import Icon from '../../components/Icon'
 import { uploadPropertyImage, deletePropertyImage } from '../../data/imageUpload'
 
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '')
+const resolveSrc = (p) => {
+  if (!p) return p
+  if (/^https?:\/\//i.test(p) || p.startsWith('data:') || p.startsWith('blob:')) return p
+  return `${BASE_URL}${p}`
+}
+
 // Reusable image manager for a block's images array.
 //   value:    [{ src, caption, path? }]
 //   onChange: (nextImages) => void
@@ -145,7 +152,7 @@ function ImageCard({ img, idx, total, busy, onReplace, onRemove, onCaption, onMo
     <div className="border border-outline-variant/30 rounded-xl overflow-hidden bg-surface">
       <div className="aspect-[4/3] bg-surface-container relative">
         {img.src ? (
-          <img src={img.src} alt={img.caption || ''} className="w-full h-full object-cover" />
+          <img src={resolveSrc(img.src)} alt={img.caption || ''} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
             <Icon name="image" size={32} />
