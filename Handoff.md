@@ -1,6 +1,6 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: End of Session 9**
+> **Last updated: End of Session 13**
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -10,7 +10,46 @@
 > Session 7 — V3 Admin Panel + V3 Guidebook with Activity Center (local only, not deployed)
 > Session 8 — Firebase Firestore backend, Check-In page, Check-Out form, admin records, blue UI, property info reorder
 > Session 9 — Stay-aware checkout matching, Guest Database admin page, host phone visible, form validation, Call/Text label
+> Sessions 10–12 — V3 sync + architectural overhaul (then DEPLOYED to production)
+> Session 13 — Image upload via Firebase Storage (block / per-property hero / global hero / activities), Reynard+Hawk image fixes, check-in count 0–30, V3 publish now writes to Firestore. **All deployed and live.**
 > Everything below is confirmed and saved to disk.
+
+---
+
+## ⏪ LIVE STATE & ROLLBACK (read this first)
+
+**Production URL:** `https://talodeveloper.github.io/talo-guidebook/`
+
+**Current live commit:** `b90fe7e` — "Don't dirty the draft when an image upload is rejected"
+
+V1, V2, **and V3** are all live and working as of this commit. To roll back if something breaks later:
+
+```bash
+# See history
+git log --oneline -15
+
+# Option A — undo a specific bad commit (preferred, keeps history)
+git revert <bad-commit-sha>
+npm run build && npm run deploy
+
+# Option B — hard reset the live site to a known-good commit
+git checkout b90fe7e
+npm run build && npm run deploy
+git checkout main   # return to latest after redeploying
+```
+
+**Known-good checkpoints (deploy any of these to restore that state):**
+| Commit | State |
+|---|---|
+| `b90fe7e` | **Current.** Image upload + global hero + all fixes |
+| `0a62d36` | After V3 hero field rename (heroes correct, before global-hero feature) |
+| `4be9f0c` | Image upload first shipped + Reynard/Hawk fixes |
+| `20aa485` | V3 first launched to production (no image upload yet) |
+| `7515783` | V2-only era (V3 not yet deployed) — ultimate safe fallback |
+
+**Deploy mechanics:** `npm run deploy` runs `vite build` then `gh-pages -d dist`, publishing `dist/` to the `gh-pages` branch. GitHub Pages serves that branch. Source lives on `main`. The two are pushed separately — `git push origin main` for source, `npm run deploy` for the live site.
+
+**Data note:** Admin content lives in Firestore (`v2_content/blocks`, `v2_content/properties`) + Firebase Storage (uploaded images under `properties/...`), NOT in the git repo. A code rollback does **not** revert content/images — those persist in Firebase. Guest data is in `v2_checkins` / `v2_checkouts`.
 
 ---
 
@@ -34,7 +73,7 @@ There are **3 separate version layers**. NEVER mix them up.
 |---|---|---|---|
 | V1 | `/:slug` | `/admin` | ⛔ NEVER TOUCH — preserved as-is |
 | V2 | `/v2/:slug` | `/admin-v2` | ✅ Live on GitHub Pages |
-| V3 | `/v3/:slug` | `/admin-v3` | 🔲 Local only — not deployed yet |
+| V3 | `/v3/:slug` | `/admin-v3` | ✅ Live on GitHub Pages (since Session 10–12 deploy) — the going-forward product |
 
 **Login credentials (all three admins):** `joe@talo.ventures` / `Mytalo@2026`
 
@@ -132,21 +171,47 @@ service cloud.firestore {
 - Download CSV button (respects current filters)
 - Available in sidebar under "Guest Records" group: Check-In Records · Checked Out · Guest Database
 
-### 🔲 V3 — Local Only (not on GitHub Pages)
+### ✅ V3 — Fully Live & Deployed (the going-forward product)
 
-- V3 Admin at `/admin-v3` — fully built, login works
-- V3 Guidebook at `/v3/:slug` — fully built
+- V3 Admin at `/admin-v3`, V3 Guidebook at `/v3/:slug` — all live on GitHub Pages
 - localStorage keys: `talo_admin_v3_draft` / `talo_admin_v3_live` / `talo_admin_v3_auth`
-- Guidebook reads from `talo_admin_v3_live`, falls back to `talo_admin_v3_draft`
-- **36 activities seeded** in the global repository with real images from `public/images/local/`
-- **Not deployed to GitHub Pages** — to deploy, run `npm run deploy` (will deploy V3 routes automatically since they're in the same SPA)
+- **Publish flow (important):** `adminV3Store.publish()` writes to (a) `talo_admin_v3_live`, (b) `talo_admin_v2_live` blocks key (what `contentStore` reads on fresh load), AND (c) **pushes to Firestore** `v2_content/blocks` + `v2_content/properties`. The Firestore push is what makes changes survive reloads and appear cross-device — without it the real-time listener overwrites local changes with stale server data.
+- Guidebook read order: Firestore (real-time listener) → `talo_admin_v2_live` localStorage → `contentStore.js` defaults
+- **36 activities seeded**; Reynard & Hawk bedroom/studio/outdoor image mismatches fixed via signature-checked migration in `contentStore.js`
 
-### 🔲 Remaining Work (all versions)
+### ✅ Image upload (Session 13) — Firebase Storage, NOT Supabase
 
-1. **Photo mapping — Reynard Way** (follow Section 8)
-2. **Photo mapping — Hawk Street** (same process)
-3. **V3 admin: Publish** the draft so live guidebook shows activities
-4. **Supabase backend** — needed for: image uploads, hero image per property
+Images now upload to **Firebase Storage** (project already on Blaze plan). Earlier handoff notes mentioning "Supabase" are obsolete — we went all-Firebase.
+
+- `src/data/imageUpload.js` — `uploadPropertyImage({slug, blockId, file, onProgress, profile})` + `deletePropertyImage(path)`. Client-side compression; two validation profiles: `default` (min 1000×700, aspect 1:3–3:1) and `hero` (min 1600×300, aspect 3.5:1–8:1, wide banner).
+- `src/admin-v3/components/ImagePicker.jsx` — reusable picker (drag/click upload, replace, remove, reorder, caption, progress, error + warning banners). Accepts `profile` prop; only dirties the draft when an upload actually succeeds.
+- Wired into: **SectionEditor** (per-block images), **PropertyInfo** (per-property hero, day + night — fields `v3HeroImage` / `v3HeroImageNight`), **GlobalActivities** modal (activity photo, replaced the old URL-paste field), **GlobalContent** (global hero banner day + night).
+- **Hero resolution chain:** per-property `v3HeroImage` → global `globalHero.day` → built-in `/images/newhero.png` (night: `v3HeroImageNight` → `globalHero.night` → `/images/nightview.png`).
+- ⚠️ The V3 hero field is named `v3HeroImage` (NOT `heroImage`) on purpose — `heroImage` already exists in `properties.js` for V1/V2 and points at interior photos. Reusing it caused V3 day heroes to render V2 data (the bug fixed in `0a62d36`).
+
+### Firebase Storage rules (set in Firebase console, not in repo)
+
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /properties/{slug}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if request.resource.size < 10 * 1024 * 1024
+                            && request.resource.contentType.matches('image/.*')
+                            && request.resource.contentType != 'image/gif';
+      allow delete: if true;
+    }
+  }
+}
+```
+`delete` needs its own clause — on a delete there's no `request.resource`, so folding it into `write` blocked deletes.
+
+### 🔲 Remaining Work / Next Up
+
+1. **SECURITY (next session):** real Firebase Auth to replace the hardcoded client-side password (`Mytalo@2026` is in committed source AND the public JS bundle); lock down Firestore rules (guest PII in `v2_checkins` may be world-readable — rules need confirming); rotate the GitHub PAT currently embedded in `.git/config` remote URL.
+2. **Productization (planned):** multi-tenant SaaS — subdomains (`abc.talorentals.com`), Firebase Hosting, Stripe billing, super-admin, signup/account pages. Real auth (item 1) is the first foundation brick.
+3. Per-property / global hero photos are still the built-in defaults until an admin uploads real ones via the new pickers.
 
 ---
 
@@ -641,3 +706,41 @@ Each phase is one Git commit (or small series). To roll back: `git revert <commi
 ---
 
 *Session 10: V2→V3 parity sync | Session 11: House rule + FAQ mixing, sections engine, Activity page, categories admin, dynamic check-in flow, deactivation/delete, preview-link fix | Session 12: Property Info card toggles, checkout part toggles, duplicate fix, menu/content order verified, QA pass, 2-phase deployment plan*
+
+---
+
+## Session 13 (image upload + fixes) — DEPLOYED & LIVE
+
+All of the following is live in production at commit `b90fe7e`.
+
+### What changed
+1. **Sessions 10–12 deployed.** V3 went from local-only to live (commit `20aa485`). V2 untouched.
+2. **Firebase Storage image upload** built end-to-end (see "Image upload" section above). All-Firebase, not Supabase.
+3. **Reynard & Hawk image fixes** via signature-checked migration in `contentStore.js` (`_migrateHawkBedroomImages`) — only rewrites blocks whose images still match the original broken signature, so admin edits are preserved. Fixes: Hawk 1F bedrooms (dropped a living-room photo mislabeled "bunk beds", reduced to 3), Hawk 2F bedrooms (dropped a bathroom + living-room shot, reduced to 2), Hawk Outdoor (dropped mismatched BBQ caption, 3 imgs), Reynard bedrooms (reduced to 3), Reynard Studio (corrected captions, reduced to 3). Same migration also runs inside `adminV3Store` on draft/live and inside `contentStore.reloadFromLive` so Firestore data is corrected at runtime too.
+4. **Per-property hero** (PropertyInfo → Hero Banner Image, day + night) and **global hero** (GlobalContent → Global Hero Banner, day + night).
+5. **Activity photos** now upload via ImagePicker (was URL paste).
+6. **Check-in guest count 0→30** (was 0→15) in `V3CheckInPage.jsx` — one property allows 22 guests.
+7. **Publish now pushes to Firestore** (`pushToFirestore` in `adminV3Store.publish`). Root-cause fix for "uploaded image disappears on reload" — the real-time listener was overwriting local publishes with stale server data.
+8. **ImagePicker bug fixes:** BASE_URL prefix for static-image previews on production (`e7d6c04`); don't dirty the draft / activate Publish when an upload is rejected (`b90fe7e`).
+
+### Key new files
+- `src/data/imageUpload.js` — upload/delete helpers + validation profiles
+- `src/admin-v3/components/ImagePicker.jsx` — reusable image picker
+
+### Key new store APIs (`src/data/adminV3Store.js`)
+- `getBlockImages()`, `hasImageOverride()`, `setBlockImages()`, `clearBlockImages()` (per-property image overrides — `propertyImageOverrides[slug][blockId]`)
+- `getGlobalHero()`, `setGlobalHero()`, `readPublishedGlobalHero()`
+- `pushToFirestore()` (internal, called by `publish()`)
+
+### Data model additions
+```
+globalHero: { day, dayPath, night, nightPath }
+propertyImageOverrides: { [slug]: { [blockId]: [{src, caption, path}] } }
+properties[slug].v3HeroImage / v3HeroImagePath: day hero (null = use global/default)
+properties[slug].v3HeroImageNight / v3HeroImageNightPath: night hero
+```
+
+### Firebase setup done this session
+- Upgraded project to **Blaze** (pay-as-you-go) plan — required for Storage
+- Budget alert set at $10/mo (50/90/100% thresholds) in Google Cloud
+- Storage rules published (see "Firebase Storage rules" above)
