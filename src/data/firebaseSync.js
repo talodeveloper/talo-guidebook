@@ -1,13 +1,20 @@
 /**
  * firebaseSync.js
- * Sets up real-time Firestore listeners for V2 content.
- * Import this ONCE at the top of App.jsx — it initialises automatically.
+ * Real-time Firestore source for the guidebook. Import ONCE at the top of App.jsx.
  *
- * Data model in Firestore:
- *   v2_content/blocks      → { data: [...all content blocks] }
- *   v2_content/properties  → { 'reynard-way': {...}, 'hawk-street': {...}, ... }
- *   v2_content/faq         → { 'reynard-way': [...], 'hawk-street': [...], ... }
- *   v2_checkins/{auto-id}  → individual check-in submission documents
+ * Phase 1.6 cutover: the PRIMARY source is now the tenant-scoped dataset
+ *   tenants/{tenantId}/data/live  →  { data: <full admin dataset> }
+ * which holds blocks + properties + faq + all V3 config in one document.
+ *
+ * If that tenant doc is missing/empty, we automatically fall back to the legacy
+ * per-collection docs (v2_content/blocks, /properties, /faq) — so there is no
+ * failure mode during/after migration.
+ *
+ * The full dataset is also mirrored into localStorage `talo_admin_v3_live` so
+ * the guidebook's readV3Data() returns the real published V3 config (sections,
+ * curation, heroes, image overrides) to ALL visitors — fixing the prior issue
+ * where guests fell back to defaults because that config lived only in the
+ * admin's own browser.
  */
 
 import { db } from '../firebase'
@@ -15,61 +22,59 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { contentStore } from './contentStore'
 import { fsPaths } from './tenant'
 
-// ─── In-memory Firestore caches ───────────────────────────────────────────
+const V3_LIVE_KEY = 'talo_admin_v3_live'
+
+// ─── In-memory caches (consumed by V2 layout via the subscribe API) ────────
 let _propertyOverrides = {}
 let _faqOverrides      = {}
-
 let _propListeners = []
 let _faqListeners  = []
-
 function notifyProp() { _propListeners.forEach(fn => fn(_propertyOverrides)) }
 function notifyFaq()  { _faqListeners.forEach(fn => fn(_faqOverrides)) }
 
-// ─── Listener: content blocks ─────────────────────────────────────────────
+// ─── Legacy fallback listeners (only attached if the tenant doc is absent) ──
+let _legacyAttached = false
+function attachLegacyListeners() {
+  if (_legacyAttached) return
+  _legacyAttached = true
+  try {
+    onSnapshot(doc(db, ...fsPaths.contentBlocks()), (snap) => {
+      const data = snap.exists() ? snap.data()?.data : null
+      if (Array.isArray(data) && data.length > 0) contentStore.reloadFromLive(data)
+    }, () => {})
+    onSnapshot(doc(db, ...fsPaths.contentProperties()), (snap) => {
+      if (snap.exists()) { _propertyOverrides = snap.data() || {}; notifyProp() }
+    }, () => {})
+    onSnapshot(doc(db, ...fsPaths.contentFaq()), (snap) => {
+      if (snap.exists()) { _faqOverrides = snap.data() || {}; notifyFaq() }
+    }, () => {})
+  } catch {}
+}
+
+// ─── Primary listener: tenant dataset (with automatic legacy fallback) ──────
 try {
   onSnapshot(
-    doc(db, ...fsPaths.contentBlocks()),
+    doc(db, ...fsPaths.tenantDataLive()),
     (snap) => {
-      if (snap.exists()) {
-        const data = snap.data()?.data
-        if (Array.isArray(data) && data.length > 0) {
-          contentStore.reloadFromLive(data)
-        }
+      const full = snap.exists() ? snap.data()?.data : null
+      if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
+        // Hydrate the full published config so readV3Data() serves it to guests.
+        try { localStorage.setItem(V3_LIVE_KEY, JSON.stringify(full)) } catch {}
+        if (full.properties) { _propertyOverrides = full.properties; notifyProp() }
+        if (full.faq)        { _faqOverrides = full.faq;        notifyFaq() }
+        contentStore.reloadFromLive(full.blocks)
+      } else {
+        // Tenant doc missing/empty → use the legacy per-collection docs.
+        attachLegacyListeners()
       }
     },
-    () => {} // silent fail — local data is still used
+    () => { attachLegacyListeners() }  // permission/network error → fall back
   )
-} catch {}
+} catch {
+  attachLegacyListeners()
+}
 
-// ─── Listener: property info ──────────────────────────────────────────────
-try {
-  onSnapshot(
-    doc(db, ...fsPaths.contentProperties()),
-    (snap) => {
-      if (snap.exists()) {
-        _propertyOverrides = snap.data() || {}
-        notifyProp()
-      }
-    },
-    () => {}
-  )
-} catch {}
-
-// ─── Listener: FAQ ────────────────────────────────────────────────────────
-try {
-  onSnapshot(
-    doc(db, ...fsPaths.contentFaq()),
-    (snap) => {
-      if (snap.exists()) {
-        _faqOverrides = snap.data() || {}
-        notifyFaq()
-      }
-    },
-    () => {}
-  )
-} catch {}
-
-// ─── Public API ───────────────────────────────────────────────────────────
+// ─── Public API (unchanged) ────────────────────────────────────────────────
 export function getPropertyOverrides() { return _propertyOverrides }
 export function getFaqOverrides()      { return _faqOverrides }
 
@@ -77,7 +82,6 @@ export function subscribeProperties(fn) {
   _propListeners.push(fn)
   return () => { _propListeners = _propListeners.filter(l => l !== fn) }
 }
-
 export function subscribeFaq(fn) {
   _faqListeners.push(fn)
   return () => { _faqListeners = _faqListeners.filter(l => l !== fn) }
