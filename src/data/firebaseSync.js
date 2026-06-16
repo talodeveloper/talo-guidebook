@@ -13,6 +13,7 @@
 import { db } from '../firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { contentStore } from './contentStore'
+import { fsPaths } from './tenant'
 
 // ─── In-memory Firestore caches ───────────────────────────────────────────
 let _propertyOverrides = {}
@@ -27,7 +28,7 @@ function notifyFaq()  { _faqListeners.forEach(fn => fn(_faqOverrides)) }
 // ─── Listener: content blocks ─────────────────────────────────────────────
 try {
   onSnapshot(
-    doc(db, 'v2_content', 'blocks'),
+    doc(db, ...fsPaths.contentBlocks()),
     (snap) => {
       if (snap.exists()) {
         const data = snap.data()?.data
@@ -43,7 +44,7 @@ try {
 // ─── Listener: property info ──────────────────────────────────────────────
 try {
   onSnapshot(
-    doc(db, 'v2_content', 'properties'),
+    doc(db, ...fsPaths.contentProperties()),
     (snap) => {
       if (snap.exists()) {
         _propertyOverrides = snap.data() || {}
@@ -57,7 +58,7 @@ try {
 // ─── Listener: FAQ ────────────────────────────────────────────────────────
 try {
   onSnapshot(
-    doc(db, 'v2_content', 'faq'),
+    doc(db, ...fsPaths.contentFaq()),
     (snap) => {
       if (snap.exists()) {
         _faqOverrides = snap.data() || {}

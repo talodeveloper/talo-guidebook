@@ -4,15 +4,16 @@ import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
 import { adminSignIn, adminSignOut, verifyAdminPassword } from './auth'
+import { fsPaths } from './tenant'
 
 // Push a live snapshot to Firestore so the cross-tab/cross-session listener
 // can't overwrite our changes with stale data. Best-effort — failure here
 // must not block the local publish, since the local data is already saved.
 async function pushToFirestore(live) {
   try {
-    await setDoc(doc(db, 'v2_content', 'blocks'), { data: live.blocks })
+    await setDoc(doc(db, ...fsPaths.contentBlocks()), { data: live.blocks })
     if (live.properties) {
-      await setDoc(doc(db, 'v2_content', 'properties'), live.properties)
+      await setDoc(doc(db, ...fsPaths.contentProperties()), live.properties)
     }
   } catch (err) {
     console.warn('[adminV3Store] Firestore push failed:', err)
