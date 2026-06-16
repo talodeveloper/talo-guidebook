@@ -23,7 +23,8 @@
 **Current live commit:** `6c9a38f` — "Migrate all 3 admin logins to Firebase Authentication"
 
 **Security state (Session 13.1):** Admin login is now real **Firebase Auth** (email/password) — the hardcoded `Mytalo@2026` is retired everywhere. **Firestore rules are locked**: `v2_content` public-read / auth-write; `v2_checkins` + `v2_checkouts` anonymous-create-only, auth-required to read/manage; deny-all default. Verified in production: guest PII reads are `permission-denied` for anonymous clients, guidebook content still public-readable. The Firebase Auth user lives in Firebase Console → Authentication → Users.
-**Still open (next):** (1) GitHub PAT embedded in local `.git/config` remote URL — rotate it. (2) Firebase **Storage** rules still allow anonymous write/delete — should be tightened to `request.auth != null` for write/delete (admin-only; guests only read images).
+**Storage rules also locked (Session 13.1):** `properties/**` is public-read, but **create/update/delete require `request.auth != null`** (admin-only) plus the existing image-type/size/no-GIF checks on writes. Verified in production: anonymous upload returns `unauthorized`, public image read still works, authed admin upload confirmed working.
+**Still open (next):** GitHub PAT embedded in local `.git/config` remote URL — rotate it (deferred; local-only, ~60-day expiry).
 
 V1, V2, **and V3** are all live and working as of this commit. To roll back if something breaks later:
 
