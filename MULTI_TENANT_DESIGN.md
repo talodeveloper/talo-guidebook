@@ -1,7 +1,7 @@
 # Multi-Tenant SaaS — Data Model & Migration Design
 
 > Status: **DESIGN / PROPOSAL** — no code written yet. For review before implementation.
-> Locked decisions so far: subdomains per tenant (`abc.talorentals.com`); hosting on Firebase.
+> Locked decisions: **path-based URLs** (`{domain}/guidebook/{tenant-slug}/{property-slug}`), tenant-chosen slugs; hosting on **Firebase Hosting** (move off GitHub Pages); 3-day grace on lapsed billing; one user = one tenant for v1.
 > Foundation already built: real Firebase Auth + locked Firestore/Storage rules (Session 13.1).
 
 ---
@@ -90,14 +90,23 @@ tenants/{tenantId}/properties/{slug}/{blockId}/{file}
 
 ---
 
-## 5. Subdomain → tenant resolution
+## 5. Path-based tenant resolution (LOCKED)
 
-1. App loads at `talo.talorentals.com`.
-2. Frontend extracts the subdomain (`talo`), reads `subdomains/talo` → `{ tenantId: "talo" }`.
-3. Loads `tenants/talo/data/live` and renders that tenant's guidebooks.
-4. `subdomains/*` is **public-readable** (needed before login).
-5. **Reserved subdomains** (cannot be claimed by tenants): `www`, `app`, `admin`, `api`, `mail`, `dashboard`, etc.
-6. The apex/`www` domain serves the **marketing + signup** site, not a tenant guidebook.
+URL shape:
+- **Guidebook:** `{domain}/guidebook/{tenant-slug}/{property-slug}` — e.g. `/guidebook/abcguide/ocean-villa`
+- **Admin:** `{domain}/admin` — tenant is derived from the logged-in user's auth claim, so no slug in the admin URL.
+
+Resolution:
+1. React Router route `/guidebook/:tenantSlug/:propertySlug` hands `tenantSlug` straight to the page.
+2. Look up `slugs/{tenantSlug}` → `{ tenantId }` (public-readable map).
+3. Load `tenants/{tenantId}/data/live`, render `propertySlug`.
+
+**Slug rules:**
+- `tenant-slug` is **globally unique** across the platform; chosen by the tenant at signup, validated for uniqueness + format (lowercase, alphanumeric + hyphens) + not reserved.
+- `property-slug` is **unique within a tenant**, editable by that tenant.
+- **Reserved slugs** (cannot be claimed): `admin`, `api`, `guidebook`, `app`, `www`, `signup`, `login`, `account`, `super`, etc.
+
+**Future upgrade path (premium, no data changes):** add subdomain (`abc.domain.com`) or custom-domain (`www.theirbrand.com`) host→tenant resolution layered on top of the same model.
 
 ---
 
@@ -138,7 +147,7 @@ Same shape as the rules we just shipped, now scoped per tenant. Tenant A's admin
 ## 7. Subscription / billing behavior
 
 - Stripe webhook (Cloud Function) updates `tenants/{tid}/subscription.status`.
-- **Proposed lapse behavior:** if `status` is `past_due`/`canceled`, **lock the admin panel** (read-only or blocked) but **keep the guest guidebook live** — don't punish guests for the owner's billing, and keep QR codes/links working during a grace period. *(Open decision — see §10.)*
+- **Lapse behavior (LOCKED):** on `past_due`/`canceled`, **lock the admin immediately** with a banner — *"Your plan is inactive. You have 3 days to reactivate before your guidebook goes offline."* The guest guidebook stays live during the **3-day grace**; after that it also goes dark (a friendly "unavailable" page). Reactivating payment restores both instantly.
 - **Plan limits:** `propertyLimit` enforced in the admin when adding a property; downgrades that exceed the new limit are handled gracefully (block new adds; existing extras become read-only rather than deleted).
 
 ---
@@ -182,12 +191,31 @@ P1 is the foundation and the one that touches TALO's live data — so it gets th
 
 ---
 
-## 10. Open decisions to confirm before building P1
+## 10. Decisions — RESOLVED
 
-1. **Lapsed-subscription behavior** — when a tenant stops paying: lock admin but keep guest guidebook live (recommended), or take the whole guidebook offline?
-2. **Tenant ID format** — human-readable slugs (`talo`) or opaque generated IDs? (Slugs are friendlier for debugging; opaque is tidier long-term. Recommend: slug = subdomain for v1.)
-3. **One user ↔ one tenant for v1?** (Recommended. Multi-tenant-per-user / team members can come later.)
-4. **Plans & pricing tiers** — rough shape (e.g. Starter = N properties, Pro = more)? Needed before P3/P4 but not for P1.
+1. ✅ **Lapsed billing** — lock admin immediately + 3-day grace, then guidebook goes dark (see §7).
+2. ✅ **URLs** — path-based, tenant-chosen globally-unique slugs (see §5).
+3. ✅ **One user = one tenant** for v1. Team members / multi-tenant-per-user later.
+4. ✅ **Hosting** — move from GitHub Pages to **Firebase Hosting**, custom domain from GoDaddy pointed at it (see §11).
+5. 🔲 **Plans & pricing tiers** — still TBD (e.g. Starter = N properties, Pro = more). Needed before P3/P4 (billing), not for P1.
+
+## 11. Hosting & domain migration (GitHub Pages → Firebase Hosting → GoDaddy domain)
+
+Currently the app is on **GitHub Pages**. The product needs a real domain on **Firebase Hosting** (where the backend already lives). This is a self-contained move, best done **before** the multi-tenant data work as a clean foundation.
+
+**Critical pre-checks before any DNS change** (avoid breaking existing services on the domain):
+- What is the exact domain? (assumed `talorentals.com` — confirm)
+- Is there already a **website** at that domain (apex or `www`)? Pointing it at Firebase would replace it.
+- Is there **email** on that domain (Google Workspace / GoDaddy email)? Email uses **MX records** — we must NOT touch those, only A/CNAME for the website.
+- Any other live services on subdomains?
+
+**High-level steps (detailed when we execute):**
+1. Add the domain in Firebase Hosting → it issues DNS records to set.
+2. In GoDaddy DNS, add Firebase's A / TXT (verification) records for the apex, and/or CNAME for `www`. Leave MX (email) untouched.
+3. Firebase auto-provisions SSL (free) for the domain.
+4. Deploy the current app to Firebase Hosting; verify it serves identically to the GitHub Pages version.
+5. Cut over; keep GitHub Pages as a fallback until the domain is confirmed stable.
+6. `BASE_URL` / router basename changes from `/talo-guidebook/` (GitHub Pages subpath) to `/` (root domain) — a build-config change to handle during cutover.
 
 ---
 
