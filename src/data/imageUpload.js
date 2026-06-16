@@ -1,5 +1,6 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../firebase'
+import { getTenantId } from './tenant'
 
 // Validation profiles — each upload picks one matching its render context.
 // `default` is for property/activity grid images. `hero` is for wide banner
@@ -103,7 +104,10 @@ export async function uploadPropertyImage({ slug, blockId, file, onProgress, pro
   onProgress?.(50)
 
   const safeName = (file.name || 'upload.jpg').replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `properties/${slug}/${blockId || 'misc'}/${Date.now()}_${safeName}`
+  // P1.8: new uploads live under the tenant-scoped path. Existing images keep
+  // their old `properties/...` paths and absolute URLs, so they're unaffected.
+  const tid = getTenantId()
+  const path = `tenants/${tid}/properties/${slug}/${blockId || 'misc'}/${Date.now()}_${safeName}`
   const storageRef = ref(storage, path)
 
   await uploadBytes(storageRef, compressed, {
