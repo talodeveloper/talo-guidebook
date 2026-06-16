@@ -18,8 +18,9 @@ function DeletePropertyZone({ slug, propEntry, propertyName }) {
   const daysLeft = Math.max(0, Math.ceil(COOL_OFF_DAYS - daysSince))
   const canDelete = deactivatedAt && daysSince >= COOL_OFF_DAYS
 
-  const handleFinalDelete = () => {
-    if (!adminV3Store.verifyCredentials(creds.email.trim(), creds.password)) {
+  const handleFinalDelete = async () => {
+    const ok = await adminV3Store.verifyCredentials(creds.email.trim(), creds.password)
+    if (!ok) {
       setCredError('Incorrect email or password. Property was NOT deleted.')
       return
     }

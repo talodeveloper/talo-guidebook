@@ -3,6 +3,7 @@
 
 import { properties as initialProperties } from './properties'
 import { sharedContent as initialShared } from './sharedContent'
+import { adminSignIn, adminSignOut } from './auth'
 
 // Clone so mutations don't affect original imports
 let _properties = JSON.parse(JSON.stringify(initialProperties))
@@ -14,18 +15,18 @@ function notify() {
 }
 
 export const adminStore = {
-  // Auth (demo only — swap for Supabase Auth in production)
+  // Auth — backed by Firebase Auth (see src/data/auth.js)
   isAuthenticated: () => localStorage.getItem('talo_admin_auth') === 'true',
-  login: (email, password) => {
-    if (email === 'joe@talo.ventures' && password === 'Mytalo@2026') {
+  login: async (email, password) => {
+    try {
+      await adminSignIn(email, password)
       localStorage.setItem('talo_admin_auth', 'true')
       return true
+    } catch {
+      return false
     }
-    return false
   },
-  logout: () => {
-    localStorage.removeItem('talo_admin_auth')
-  },
+  logout: () => { adminSignOut() },
 
   // Properties
   getProperties: () => Object.values(_properties),

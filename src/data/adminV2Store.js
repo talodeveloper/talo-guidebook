@@ -3,6 +3,7 @@ import { properties as defaultProperties } from './properties'
 import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
+import { adminSignIn, adminSignOut } from './auth'
 
 export const ADMIN_V2_LIVE_KEY = 'talo_admin_v2_live'
 const DRAFT_KEY = 'talo_admin_v2_draft'
@@ -66,15 +67,17 @@ if (!_draft) {
 export const adminV2Store = {
   isAuthenticated: () => localStorage.getItem(AUTH_KEY) === 'true',
 
-  login(email, password) {
-    if (email === 'joe@talo.ventures' && password === 'Mytalo@2026') {
+  async login(email, password) {
+    try {
+      await adminSignIn(email, password)
       localStorage.setItem(AUTH_KEY, 'true')
       return true
+    } catch {
+      return false
     }
-    return false
   },
 
-  logout() { localStorage.removeItem(AUTH_KEY) },
+  logout() { adminSignOut() },
 
   hasUnsavedChanges() {
     if (!_live) return true

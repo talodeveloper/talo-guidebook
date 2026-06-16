@@ -15,7 +15,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     await new Promise((r) => setTimeout(r, 600))
-    const ok = adminStore.login(email, password)
+    const ok = await adminStore.login(email, password)
     setLoading(false)
     if (ok) {
       navigate('/admin/dashboard', { replace: true })

@@ -8,9 +8,15 @@ export default function AdminV2Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const [busy, setBusy] = useState(false)
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (adminV2Store.login(email, password)) {
+    setError('')
+    setBusy(true)
+    const ok = await adminV2Store.login(email, password)
+    setBusy(false)
+    if (ok) {
       navigate('/admin-v2/dashboard')
     } else {
       setError('Incorrect email or password.')

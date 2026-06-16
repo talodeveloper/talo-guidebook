@@ -3,6 +3,7 @@ import { properties as defaultProperties } from './properties'
 import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
+import { adminSignIn, adminSignOut, verifyAdminPassword } from './auth'
 
 // Push a live snapshot to Firestore so the cross-tab/cross-session listener
 // can't overwrite our changes with stale data. Best-effort — failure here
@@ -376,15 +377,17 @@ if (_draft?.propertyList?.some(p => p.status === 'inactive' && !p.deactivatedAt)
 export const adminV3Store = {
   isAuthenticated: () => localStorage.getItem(AUTH_KEY) === 'true',
 
-  login(email, password) {
-    if (email === 'joe@talo.ventures' && password === 'Mytalo@2026') {
+  async login(email, password) {
+    try {
+      await adminSignIn(email, password)
       localStorage.setItem(AUTH_KEY, 'true')
       return true
+    } catch {
+      return false
     }
-    return false
   },
 
-  logout() { localStorage.removeItem(AUTH_KEY) },
+  logout() { adminSignOut() },
 
   hasUnsavedChanges() {
     if (!_live) return true
@@ -1013,8 +1016,8 @@ export const adminV3Store = {
   },
 
   // Re-check credentials without touching the auth session (delete confirmation)
-  verifyCredentials(email, password) {
-    return email === 'joe@talo.ventures' && password === 'Mytalo@2026'
+  async verifyCredentials(email, password) {
+    return verifyAdminPassword(email, password)
   },
 
   // Permanently removes a property and all its data from the draft.
