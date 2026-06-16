@@ -22,7 +22,12 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { contentStore } from './contentStore'
 import { fsPaths } from './tenant'
 
-const V3_LIVE_KEY = 'talo_admin_v3_live'
+// Guest-facing cache, populated from Firestore. Deliberately a DIFFERENT key
+// from the admin's `talo_admin_v3_live` — the admin owns that one and we must
+// not silently overwrite it (Firestore re-orders object keys, which would
+// make in-memory _live drift from _draft and flag spurious "unsaved changes"
+// on every reload).
+export const GUEST_V3_CACHE_KEY = 'talo_v3_guest_cache'
 
 // ─── In-memory caches (consumed by V2 layout via the subscribe API) ────────
 let _propertyOverrides = {}
@@ -58,8 +63,9 @@ try {
     (snap) => {
       const full = snap.exists() ? snap.data()?.data : null
       if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
-        // Hydrate the full published config so readV3Data() serves it to guests.
-        try { localStorage.setItem(V3_LIVE_KEY, JSON.stringify(full)) } catch {}
+        // Hydrate the public guest cache so readV3Data() serves real published
+        // config to first-time visitors. NEVER writes the admin's own keys.
+        try { localStorage.setItem(GUEST_V3_CACHE_KEY, JSON.stringify(full)) } catch {}
         if (full.properties) { _propertyOverrides = full.properties; notifyProp() }
         if (full.faq)        { _faqOverrides = full.faq;        notifyFaq() }
         contentStore.reloadFromLive(full.blocks)

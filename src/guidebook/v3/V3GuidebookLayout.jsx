@@ -9,7 +9,9 @@ const ADMIN_V3_DRAFT_KEY = 'talo_admin_v3_draft'
 // Live first; draft fallback so brand-new (unpublished) properties preview correctly
 function readV3PropertyData() {
   try {
-    const raw = localStorage.getItem(ADMIN_V3_LIVE_KEY) || localStorage.getItem(ADMIN_V3_DRAFT_KEY)
+    const raw = localStorage.getItem(ADMIN_V3_LIVE_KEY)
+             || localStorage.getItem('talo_v3_guest_cache')
+             || localStorage.getItem(ADMIN_V3_DRAFT_KEY)
     return raw ? JSON.parse(raw) : null
   } catch { return null }
 }

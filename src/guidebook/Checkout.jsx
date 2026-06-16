@@ -45,7 +45,9 @@ export default function Checkout() {
       // V3: admin can hide individual checkout parts per property
       if (isV3) {
         try {
-          const raw = localStorage.getItem('talo_admin_v3_live') || localStorage.getItem('talo_admin_v3_draft')
+          const raw = localStorage.getItem('talo_admin_v3_live')
+                   || localStorage.getItem('talo_v3_guest_cache')
+                   || localStorage.getItem('talo_admin_v3_draft')
           const disabled = raw ? (JSON.parse(raw)?.disabledBlocks?.[slug] || []) : []
           if (disabled.length) next = next.filter(b => !disabled.includes(b.id))
         } catch {}

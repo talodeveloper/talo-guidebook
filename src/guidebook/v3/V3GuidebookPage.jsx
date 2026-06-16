@@ -3,10 +3,15 @@ import { useOutletContext, Link, useParams } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { ADMIN_V3_LIVE_KEY, applyPropertyBlockOrder, buildV3Sections } from '../../data/adminV3Store'
 
-// Read published V3 data (falls back to draft for local preview)
+// Read published V3 data.
+// Order: admin's own `_live` (so an admin viewing the guidebook sees their
+// latest publish instantly) → guest cache (Firestore-hydrated, for visitors
+// who never edited) → admin draft (for unpublished local previews).
 export function readV3Data() {
   try {
-    const raw = localStorage.getItem(ADMIN_V3_LIVE_KEY) || localStorage.getItem('talo_admin_v3_draft')
+    const raw = localStorage.getItem(ADMIN_V3_LIVE_KEY)
+              || localStorage.getItem('talo_v3_guest_cache')
+              || localStorage.getItem('talo_admin_v3_draft')
     return raw ? JSON.parse(raw) : null
   } catch { return null }
 }

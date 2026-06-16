@@ -60,7 +60,9 @@ export default function V3FAQPage() {
   // Merged list: global + property questions in curated order, disabled removed
   let faqs = FAQ_DATA[slug] || []
   try {
-    const liveRaw = localStorage.getItem(ADMIN_V3_LIVE_KEY) || localStorage.getItem('talo_admin_v3_draft')
+    const liveRaw = localStorage.getItem(ADMIN_V3_LIVE_KEY)
+                 || localStorage.getItem('talo_v3_guest_cache')
+                 || localStorage.getItem('talo_admin_v3_draft')
     if (liveRaw) {
       const live = JSON.parse(liveRaw)
       if (live?.faq?.[slug] || live?.globalFaq?.length) faqs = buildFaqList(live, slug)
