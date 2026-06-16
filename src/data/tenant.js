@@ -23,4 +23,10 @@ export const fsPaths = {
   contentBlocks:     () => ['v2_content', 'blocks'],
   contentProperties: () => ['v2_content', 'properties'],
   contentFaq:        () => ['v2_content', 'faq'],
+
+  // Tenant-scoped full dataset blob (Phase 1.4+). Holds the entire published
+  // (live) / working (draft) admin dataset for one tenant. Written by publish
+  // as a dual-write now; becomes the authoritative read source at step 1.6.
+  tenantDataLive:  (tid = getTenantId()) => ['tenants', tid, 'data', 'live'],
+  tenantDataDraft: (tid = getTenantId()) => ['tenants', tid, 'data', 'draft'],
 }

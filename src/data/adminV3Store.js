@@ -15,6 +15,11 @@ async function pushToFirestore(live) {
     if (live.properties) {
       await setDoc(doc(db, ...fsPaths.contentProperties()), live.properties)
     }
+    // P1.4 dual-write: mirror the FULL dataset into the tenant-scoped doc.
+    // Not read by the app yet (step 1.6 flips reads here). JSON round-trip
+    // strips any `undefined` (Firestore rejects undefined values).
+    const clean = JSON.parse(JSON.stringify(live))
+    await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt: Date.now() })
   } catch (err) {
     console.warn('[adminV3Store] Firestore push failed:', err)
   }
