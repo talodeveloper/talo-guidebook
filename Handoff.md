@@ -23,8 +23,7 @@
 
 **Production URL:** `https://talodeveloper.github.io/talo-guidebook/`
 
-**Current live commit (GitHub Pages):** `f6ff625` — "Fix spurious logout on rapid admin refreshes"
-**Latest local commit:** `32ab15d` — "P5: super-admin platform panel" (not yet deployed — deploy when ready)
+**Current live commit (GitHub Pages):** `ff59429` — "Update Handoff: record P1 + P5 progress and next steps" (includes super-admin panel)
 
 **Security state (Session 13.1):** Admin login is now real **Firebase Auth** (email/password) — the hardcoded `Mytalo@2026` is retired everywhere. **Firestore rules are locked**: `v2_content` public-read / auth-write; `v2_checkins` + `v2_checkouts` anonymous-create-only, auth-required to read/manage; deny-all default. Verified in production: guest PII reads are `permission-denied` for anonymous clients, guidebook content still public-readable. The Firebase Auth user lives in Firebase Console → Authentication → Users.
 **Storage rules also locked (Session 13.1):** `properties/**` is public-read, but **create/update/delete require `request.auth != null`** (admin-only) plus the existing image-type/size/no-GIF checks on writes. Verified in production: anonymous upload returns `unauthorized`, public image read still works, authed admin upload confirmed working.
@@ -226,7 +225,7 @@ service firebase.storage {
 - Firestore rules updated: `tenants/{tid}/data/live` public-read; `tenants/{tid}/checkins` auth-only
 - Bug fixes: spurious "unsaved changes" after Firestore hydration; spurious logout on rapid refresh
 
-**Phase 5 — Super-admin panel** (local, commit `32ab15d`, not yet deployed):
+**Phase 5 — Super-admin panel** (deployed, commit `32ab15d`):
 - `/super-admin` — completely separate dark-themed panel, no overlap with TALO admin
 - Login verifies Firebase Auth + `role: 'superadmin'` custom claim
 - Dashboard: all tenants, status/plan badges, inline suspend/activate
@@ -237,12 +236,16 @@ service firebase.storage {
 
 ### 🔲 Remaining Work / Next Up
 
-1. **Bootstrap superadmin account:** Create a Firebase Auth user for your operator account (Firebase Console → Authentication → Add user), then run `node scripts/make-superadmin.mjs <your-email>`. That unlocks `/super-admin`.
-2. **Deploy super-admin panel:** `npm run deploy` to push to GitHub Pages (the panel is already built and commit-ready).
-3. **Domain decision (needed for P2):** Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records). This unblocks Firebase Hosting + subdomain routing.
-4. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS, flip app to read `window.location.hostname` for tenant resolution.
-5. **P3 — Cloud Functions:** Tenant provisioning (auto-creates Firestore docs + sets auth claims on signup). Replaces the manual `set-tenant-claims.mjs` script.
-6. **P4 — Signup + Stripe:** Public signup page → Stripe Checkout → Cloud Function auto-provisions tenant.
+1. **Domain decision (needed for P2):** Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records). This unblocks Firebase Hosting + subdomain routing.
+2. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS, flip app to read `window.location.hostname` for tenant resolution.
+3. **P3 — Cloud Functions:** Tenant provisioning (auto-creates Firestore docs + sets auth claims on signup). Replaces the manual `set-tenant-claims.mjs` script.
+4. **P4 — Signup + Stripe:** Public signup page → Stripe Checkout → Cloud Function auto-provisions tenant.
+
+### Super-admin credentials (live)
+- **URL:** `https://talodeveloper.github.io/talo-guidebook/super-admin`
+- **Login:** `saari.joseph@gmail.com` + password set in Firebase Console
+- **Claims:** `role: superadmin` (set via `make-superadmin.mjs` on Jun 16 2026)
+- **Note:** This is a separate Firebase Auth account from Joe's TALO admin (`joe@talo.ventures`). The two panels are fully isolated.
 3. Per-property / global hero photos are still the built-in defaults until an admin uploads real ones via the new pickers.
 
 ---
