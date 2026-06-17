@@ -1,6 +1,6 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: End of Session 13**
+> **Last updated: Productization Phase 1 + Super-Admin Panel (Jun 16 2026)**
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -11,7 +11,10 @@
 > Session 8 — Firebase Firestore backend, Check-In page, Check-Out form, admin records, blue UI, property info reorder
 > Session 9 — Stay-aware checkout matching, Guest Database admin page, host phone visible, form validation, Call/Text label
 > Sessions 10–12 — V3 sync + architectural overhaul (then DEPLOYED to production)
-> Session 13 — Image upload via Firebase Storage (block / per-property hero / global hero / activities), Reynard+Hawk image fixes, check-in count 0–30, V3 publish now writes to Firestore. **All deployed and live.**
+> Session 13 — Image upload via Firebase Storage, Reynard+Hawk fixes, check-in count 0–30, V3 publish writes to Firestore. All deployed.
+> Session 13.1 — Firebase Auth for all 3 admin logins, Firestore + Storage rules locked.
+> Phase 1 (productization) — Multi-tenancy foundation: tenant data seam, TALO tenant seeded in Firestore, dual-write on publish, reads flipped to tenants/talo/data/live with legacy fallback, tenant-scoped Storage uploads, Firestore rules updated. Two bug fixes (spurious unsaved changes + spurious logout). All deployed and live.
+> Phase 5 — Super-admin platform panel at /super-admin: login (checks superadmin claim), tenant dashboard, tenant detail, create tenant, scripts for bootstrapping claims.
 > Everything below is confirmed and saved to disk.
 
 ---
@@ -20,7 +23,8 @@
 
 **Production URL:** `https://talodeveloper.github.io/talo-guidebook/`
 
-**Current live commit:** `6c9a38f` — "Migrate all 3 admin logins to Firebase Authentication"
+**Current live commit (GitHub Pages):** `f6ff625` — "Fix spurious logout on rapid admin refreshes"
+**Latest local commit:** `32ab15d` — "P5: super-admin platform panel" (not yet deployed — deploy when ready)
 
 **Security state (Session 13.1):** Admin login is now real **Firebase Auth** (email/password) — the hardcoded `Mytalo@2026` is retired everywhere. **Firestore rules are locked**: `v2_content` public-read / auth-write; `v2_checkins` + `v2_checkouts` anonymous-create-only, auth-required to read/manage; deny-all default. Verified in production: guest PII reads are `permission-denied` for anonymous clients, guidebook content still public-readable. The Firebase Auth user lives in Firebase Console → Authentication → Users.
 **Storage rules also locked (Session 13.1):** `properties/**` is public-read, but **create/update/delete require `request.auth != null`** (admin-only) plus the existing image-type/size/no-GIF checks on writes. Verified in production: anonymous upload returns `unauthorized`, public image read still works, authed admin upload confirmed working.
@@ -211,10 +215,34 @@ service firebase.storage {
 ```
 `delete` needs its own clause — on a delete there's no `request.resource`, so folding it into `write` blocked deletes.
 
+### ✅ Completed (Productization)
+
+**Phase 1 — Multi-tenancy foundation** (all deployed, commit `f6ff625`):
+- `src/data/tenant.js` — single chokepoint for Firestore path resolution
+- `scripts/seed-talo-tenant.mjs` — seeded `tenants/talo` + `slugs/talo` + auth claims (already executed)
+- Publish dual-writes to `tenants/talo/data/live` (on top of legacy `v2_content/*`)
+- `firebaseSync.js` reads from tenant path first; auto-falls back to legacy if absent
+- New image uploads → `tenants/talo/properties/...` Storage path
+- Firestore rules updated: `tenants/{tid}/data/live` public-read; `tenants/{tid}/checkins` auth-only
+- Bug fixes: spurious "unsaved changes" after Firestore hydration; spurious logout on rapid refresh
+
+**Phase 5 — Super-admin panel** (local, commit `32ab15d`, not yet deployed):
+- `/super-admin` — completely separate dark-themed panel, no overlap with TALO admin
+- Login verifies Firebase Auth + `role: 'superadmin'` custom claim
+- Dashboard: all tenants, status/plan badges, inline suspend/activate
+- Tenant Detail: properties, guest counts, last publish time, setup instructions
+- Create Tenant: writes `tenants/{slug}` + `slugs/{slug}`, shows claims-script instructions
+- `scripts/make-superadmin.mjs` — grants superadmin access to any Firebase Auth user
+- `scripts/set-tenant-claims.mjs` — sets `{tenantId, role: 'owner'}` on any user
+
 ### 🔲 Remaining Work / Next Up
 
-1. **SECURITY (next session):** real Firebase Auth to replace the hardcoded client-side password (`Mytalo@2026` is in committed source AND the public JS bundle); lock down Firestore rules (guest PII in `v2_checkins` may be world-readable — rules need confirming); rotate the GitHub PAT currently embedded in `.git/config` remote URL.
-2. **Productization (planned):** multi-tenant SaaS — subdomains (`abc.talorentals.com`), Firebase Hosting, Stripe billing, super-admin, signup/account pages. Real auth (item 1) is the first foundation brick.
+1. **Bootstrap superadmin account:** Create a Firebase Auth user for your operator account (Firebase Console → Authentication → Add user), then run `node scripts/make-superadmin.mjs <your-email>`. That unlocks `/super-admin`.
+2. **Deploy super-admin panel:** `npm run deploy` to push to GitHub Pages (the panel is already built and commit-ready).
+3. **Domain decision (needed for P2):** Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records). This unblocks Firebase Hosting + subdomain routing.
+4. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS, flip app to read `window.location.hostname` for tenant resolution.
+5. **P3 — Cloud Functions:** Tenant provisioning (auto-creates Firestore docs + sets auth claims on signup). Replaces the manual `set-tenant-claims.mjs` script.
+6. **P4 — Signup + Stripe:** Public signup page → Stripe Checkout → Cloud Function auto-provisions tenant.
 3. Per-property / global hero photos are still the built-in defaults until an admin uploads real ones via the new pickers.
 
 ---
