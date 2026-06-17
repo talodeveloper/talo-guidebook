@@ -2,7 +2,15 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { adminStore } from './data/adminStore'
 import { adminV2Store } from './data/adminV2Store'
 import { adminV3Store } from './data/adminV3Store'
+import { isSuperAdminAuthenticated } from './data/superAdminAuth'
 import './data/firebaseSync' // initialises Firestore real-time listeners for V2
+
+// Super-admin panel
+import SuperAdminLogin from './super-admin/Login'
+import SuperAdminLayout from './super-admin/Layout'
+import SuperAdminDashboard from './super-admin/pages/Dashboard'
+import SuperAdminTenantDetail from './super-admin/pages/TenantDetail'
+import SuperAdminCreateTenant from './super-admin/pages/CreateTenant'
 
 // Guidebook v1 (original teal theme)
 import GuidebookLayout from './guidebook/GuidebookLayout'
@@ -58,6 +66,10 @@ import AdminV3SectionEditor from './admin-v3/pages/SectionEditor'
 import AdminV3PropertySections from './admin-v3/pages/PropertySections'
 import AdminV3FAQEditor from './admin-v3/pages/FAQEditor'
 import AdminV3AddProperty from './admin-v3/pages/AddProperty'
+
+function RequireSuperAdmin({ children }) {
+  return isSuperAdminAuthenticated() ? children : <Navigate to="/super-admin" replace />
+}
 
 function RequireAuth({ children }) {
   return adminStore.isAuthenticated() ? children : <Navigate to="/admin" replace />
@@ -167,6 +179,22 @@ export default function App() {
             <Route path="property/:slug/activities" element={<AdminV3PropertyActivities />} />
             <Route path="property/:slug/sections" element={<AdminV3PropertySections />} />
             <Route path="property/:slug/section/:sectionKey" element={<AdminV3SectionEditor />} />
+          </Route>
+        </Route>
+
+        {/* Super-admin platform panel */}
+        <Route path="/super-admin">
+          <Route index element={<SuperAdminLogin />} />
+          <Route
+            element={
+              <RequireSuperAdmin>
+                <SuperAdminLayout />
+              </RequireSuperAdmin>
+            }
+          >
+            <Route path="dashboard" element={<SuperAdminDashboard />} />
+            <Route path="tenant/:tenantId" element={<SuperAdminTenantDetail />} />
+            <Route path="create-tenant" element={<SuperAdminCreateTenant />} />
           </Route>
         </Route>
 
