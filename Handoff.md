@@ -82,7 +82,7 @@ There are **3 separate version layers**. NEVER mix them up.
 | V2 | `/v2/:slug` | `/admin-v2` | ✅ Live on GitHub Pages |
 | V3 | `/v3/:slug` | `/admin-v3` | ✅ Live on GitHub Pages (since Session 10–12 deploy) — the going-forward product |
 
-**Login credentials (all three admins):** `joe@talo.ventures` / `Mytalo@2026`
+**Login (all three admins):** real **Firebase Auth** (email/password). The hardcoded `Mytalo@2026` is retired everywhere. Accounts live in Firebase Console → Authentication → Users. For local dev, sign in with whatever Firebase Auth user you've created.
 
 ---
 
@@ -247,7 +247,7 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 
 - Multi-tenancy data seam (P1)
 - Super-admin panel: login, dashboard, tenant detail (access links, contact info, account, usage, billing, properties, deactivation flow), create tenant (P5)
-- Deactivation enforced at admin-v3 login: status checked from Firestore after Firebase Auth succeeds; deactivated/suspended tenants are signed out and shown a clear message
+- Deactivation enforced at admin-v3: after Firebase Auth succeeds, tenant `status` is read from Firestore. Deactivated/suspended tenants **log in successfully but land on a full-screen locked wall** (`AccountLockedWall` in `src/admin-v3/Layout.jsx`) instead of the dashboard — all admin routes blocked, only Contact Support + Sign Out available. The locked state is flagged via `localStorage['talo_admin_v3_locked']` (set in `adminV3Store.login`, read by `adminV3Store.isLocked()`). The plan-selection placeholder on that wall gets replaced with real Stripe plan cards in P4.
 - Payment expiry + plan gating UX fully designed (see memory note), ready to implement in P3/P4
 
 ### 🔲 Next — blocked on external dependencies
@@ -257,6 +257,10 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 3. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS.
 4. **P3 — Cloud Functions:** Stripe webhook → auto-provisions tenant (Firestore doc + auth claims). Replaces manual script. Also handles: grace period countdown, plan expiry, plan gating.
 5. **P4 — Signup + Stripe:** Public signup/login page → plan selection (filtered by property count) → Stripe Checkout → auto-provisioned admin access. Forgot password via Firebase. Locked interstitial for expired accounts.
+6. **P6 — Support ticket system** (no external dependency; can build anytime, ideally after Stripe). Two halves:
+   - **Tenant side (`/admin-v3`):** a "Support" item in the left sidebar. Tenant submits a ticket (subject + message; optionally category/priority). Tickets stored in Firestore, e.g. `tenants/{tenantId}/support/{ticketId}` (mirrored or also written to a top-level `supportTickets` collection with `tenantId` + `tenantName` denormalized for easy super-admin querying). Tenant can see their own ticket history + status (open / in-progress / resolved) and any admin reply.
+   - **Super-admin side (`/super-admin`):** a "Support" panel listing all tickets across all tenants — showing not just the ticket but **which account raised it** (tenant name, slug, link to that tenant's detail page). Filter by status; open a ticket to read the thread and reply / mark resolved. Surface an open-ticket count badge on the dashboard.
+   - Firestore rules: a tenant can read/write only their own tickets (`request.auth.token.tenantId == tenantId`); superadmin (`request.auth.token.role == 'superadmin'`) can read/write all.
 
 ### Payment expiry UX (agreed, build in P3/P4)
 - **Grace period:** 3-day countdown banner inside admin panel, full access retained
@@ -370,7 +374,7 @@ talo-guidebook/
 4. Guidebook reads: `talo_admin_v2_live` first, then `contentStore.js`
 
 ### V2 Admin Panel — `/admin-v2`
-- **Login:** joe@talo.ventures / Mytalo@2026
+- **Login:** Firebase Auth (email/password) — account in Firebase Console → Authentication → Users
 - **Draft/Publish workflow:** Publish button → makes changes live instantly
 - **Sections:** WYSIWYG body editor (paragraphs = rich text B/I/U/size, lists = individual item boxes)
 - **Reorder:** ↑↓ on list items within block AND ↑↓ on blocks within section
@@ -622,7 +626,7 @@ READ /Users/anantgyan/talo-guidebook/Handoff.md FIRST — it has everything.
 Quick V2 orientation:
 - Dev server: npm run dev → port 5175
 - V2 guidebook: http://localhost:5175/v2/reynard-way (also hawk-street, jackson-st, vista-pointe)
-- V2 admin: http://localhost:5175/admin-v2 — Login: joe@talo.ventures / Mytalo@2026
+- V2 admin: http://localhost:5175/admin-v2 — Login: Firebase Auth user (see Firebase Console → Authentication)
 - V2 live: https://talodeveloper.github.io/talo-guidebook/v2/reynard-way
 - V1 (/:slug) — NEVER TOUCH IT
 - localStorage: talo_admin_v2_draft / talo_admin_v2_live
@@ -640,7 +644,7 @@ READ /Users/anantgyan/talo-guidebook/Handoff.md FIRST — it has everything.
 Quick V3 orientation:
 - Dev server: npm run dev → port 5175
 - V3 guidebook: http://localhost:5175/v3/reynard-way (also hawk-street, jackson-st, vista-pointe)
-- V3 admin: http://localhost:5175/admin-v3 — Login: joe@talo.ventures / Mytalo@2026
+- V3 admin: http://localhost:5175/admin-v3 — Login: Firebase Auth user (see Firebase Console → Authentication)
 - V3 is NOT yet deployed to GitHub Pages (V2 is live)
 - V3 = V2 layout + Activity Center section (replaces Local Guide + Things To Do)
 - Activity Center: 4 tabs (RBC, Parks & Beaches, Shopping & Attractions, Others), flip cards
