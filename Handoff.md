@@ -1,6 +1,6 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Super-Admin Panel — Deactivate/Suspend/Reactivate flow (Jun 17 2026)**
+> **Last updated: Productization complete — ready for P3/P4 (Jun 17 2026)**
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -23,7 +23,7 @@
 
 **Production URL:** `https://talodeveloper.github.io/talo-guidebook/`
 
-**Current live commit (GitHub Pages):** latest — Super-admin panel with Deactivate/Suspend/Reactivate confirmation flow, icon fixes, and capitalization fixes
+**Current live commit (GitHub Pages):** `3632e62` — Deactivation enforcement at login (productization foundation complete)
 
 **Security state (Session 13.1):** Admin login is now real **Firebase Auth** (email/password) — the hardcoded `Mytalo@2026` is retired everywhere. **Firestore rules are locked**: `v2_content` public-read / auth-write; `v2_checkins` + `v2_checkouts` anonymous-create-only, auth-required to read/manage; deny-all default. Verified in production: guest PII reads are `permission-denied` for anonymous clients, guidebook content still public-readable. The Firebase Auth user lives in Firebase Console → Authentication → Users.
 **Storage rules also locked (Session 13.1):** `properties/**` is public-read, but **create/update/delete require `request.auth != null`** (admin-only) plus the existing image-type/size/no-GIF checks on writes. Verified in production: anonymous upload returns `unauthorized`, public image read still works, authed admin upload confirmed working.
@@ -241,12 +241,28 @@ service firebase.storage {
 - **Reactivate** button: always visible for deactivated/suspended accounts, no credential re-check (low risk)
 - **Data retention policy**: data is NEVER auto-deleted. Tenants can log in at any time to retrieve data and resume. Deletion only on explicit written tenant request + manual platform admin confirmation. Policy displayed prominently on detail page and in every modal.
 
-### 🔲 Remaining Work / Next Up
+### ✅ Productization foundation — COMPLETE
 
-1. **Domain decision (needed for P2):** Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records). This unblocks Firebase Hosting + subdomain routing.
-2. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS, flip app to read `window.location.hostname` for tenant resolution.
-3. **P3 — Cloud Functions:** Tenant provisioning (auto-creates Firestore docs + sets auth claims on signup). Replaces the manual `set-tenant-claims.mjs` script.
-4. **P4 — Signup + Stripe:** Public signup page → Stripe Checkout → Cloud Function auto-provisions tenant.
+Everything below is done and live. The manual `set-tenant-claims.mjs` script is the only remaining rough edge — it gets replaced by Cloud Functions in P3.
+
+- Multi-tenancy data seam (P1)
+- Super-admin panel: login, dashboard, tenant detail (access links, contact info, account, usage, billing, properties, deactivation flow), create tenant (P5)
+- Deactivation enforced at admin-v3 login: status checked from Firestore after Firebase Auth succeeds; deactivated/suspended tenants are signed out and shown a clear message
+- Payment expiry + plan gating UX fully designed (see memory note), ready to implement in P3/P4
+
+### 🔲 Next — blocked on external dependencies
+
+1. **Domain decision** → unblocks P2. Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records).
+2. **Stripe account** → unblocks P3/P4. Create at stripe.com (free).
+3. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS.
+4. **P3 — Cloud Functions:** Stripe webhook → auto-provisions tenant (Firestore doc + auth claims). Replaces manual script. Also handles: grace period countdown, plan expiry, plan gating.
+5. **P4 — Signup + Stripe:** Public signup/login page → plan selection (filtered by property count) → Stripe Checkout → auto-provisioned admin access. Forgot password via Firebase. Locked interstitial for expired accounts.
+
+### Payment expiry UX (agreed, build in P3/P4)
+- **Grace period:** 3-day countdown banner inside admin panel, full access retained
+- **Locked state:** guidebooks go dark, admin login works but lands on plan wall (Sign Out only)
+- **Plan gating:** plans filtered by active property count at purchase time (e.g. 10 properties → Starter hidden)
+- **Downgrade:** allowed anytime, takes effect next billing cycle, no mid-period refunds
 
 ### Super-admin credentials (live)
 - **URL:** `https://talodeveloper.github.io/talo-guidebook/super-admin`
