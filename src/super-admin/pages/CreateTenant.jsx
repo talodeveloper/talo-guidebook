@@ -2,23 +2,26 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
+import Icon from '../../components/Icon'
 
 const RESERVED = new Set(['admin', 'api', 'guidebook', 'app', 'www', 'signup', 'login',
   'account', 'super', 'platform', 'talo', 'support', 'help', 'billing'])
 
 const PLANS = [
-  { value: 'starter', label: 'Starter', limit: 3 },
-  { value: 'pro',     label: 'Pro',     limit: 10 },
-  { value: 'founder', label: 'Founder (unlimited)', limit: 999 },
+  { value: 'starter', label: 'Starter',              limit: 3,   desc: 'Up to 3 properties' },
+  { value: 'pro',     label: 'Pro',                  limit: 10,  desc: 'Up to 10 properties' },
+  { value: 'founder', label: 'Founder (unlimited)',  limit: 999, desc: 'Unlimited properties' },
 ]
 
 function toSlug(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
 }
 
+const LIVE_BASE = 'https://talodeveloper.github.io/talo-guidebook'
+
 export default function CreateTenant() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', slug: '', plan: 'starter', adminEmail: '' })
+  const [form, setForm] = useState({ name: '', slug: '', plan: 'starter', adminEmail: '', phone: '', notes: '' })
   const [slugEdited, setSlugEdited] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -48,10 +51,10 @@ export default function CreateTenant() {
     if (RESERVED.has(slug)) return setError(`"${slug}" is a reserved slug.`)
     if (!/^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/.test(slug) && slug.length > 1)
       return setError('Slug must be lowercase letters, numbers, and hyphens only.')
+    if (!form.adminEmail.trim()) return setError('Admin email is required.')
 
     setBusy(true)
     try {
-      // Check uniqueness
       const existing = await getDoc(doc(db, 'slugs', slug))
       if (existing.exists()) {
         setError(`Slug "${slug}" is already taken.`)
@@ -60,18 +63,21 @@ export default function CreateTenant() {
       }
 
       const tenantData = {
-        name: form.name.trim(),
+        name:          form.name.trim(),
         slug,
-        status: 'active',
-        plan: form.plan,
+        status:        'active',
+        plan:          form.plan,
         propertyLimit: selectedPlan.limit,
-        createdAt: serverTimestamp(),
+        adminEmail:    form.adminEmail.trim(),
+        phone:         form.phone.trim(),
+        notes:         form.notes.trim(),
+        createdAt:     serverTimestamp(),
       }
 
       await setDoc(doc(db, 'tenants', slug), tenantData)
       await setDoc(doc(db, 'slugs', slug), { tenantId: slug })
 
-      setSuccess({ slug, adminEmail: form.adminEmail.trim() })
+      setSuccess({ slug, adminEmail: form.adminEmail.trim(), name: form.name.trim() })
     } catch (e) {
       setError('Failed to create tenant: ' + e.message)
     } finally {
@@ -80,41 +86,64 @@ export default function CreateTenant() {
   }
 
   if (success) {
+    const adminUrl   = `${LIVE_BASE}/admin-v3`
+    const guidebookBase = `${LIVE_BASE}/v3/${success.slug}/`
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <div className="rounded-2xl p-6" style={{ background: '#1E293B', border: '1px solid #334155' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-green-900/50 flex items-center justify-center">
-              <span style={{ fontFamily: 'Material Icons', fontSize: 20, color: '#4ade80' }}>check_circle</span>
+          <div className="flex items-start gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-green-900/50 flex items-center justify-center flex-shrink-0">
+              <Icon name="check_circle" size={20} className="text-green-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Tenant created</h2>
-              <p className="text-sm text-slate-400">Firestore docs written for <code className="text-slate-300">{success.slug}</code></p>
+              <h2 className="text-lg font-bold text-white">Tenant created — {success.name}</h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Firestore docs written for <code className="text-slate-300">{success.slug}</code>
+              </p>
             </div>
           </div>
 
+          {/* Quick reference links */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="rounded-xl p-3" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Admin panel link</p>
+              <p className="text-xs text-indigo-300 break-all">{adminUrl}</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Guidebook base URL</p>
+              <p className="text-xs text-indigo-300 break-all">{guidebookBase}</p>
+            </div>
+          </div>
+
+          {/* Next steps */}
           <div className="rounded-xl p-4 mb-5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Next steps to activate the admin</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Activation checklist</p>
             <ol className="space-y-3 text-sm text-slate-300">
-              <li>
-                <span className="text-indigo-400 font-semibold">1.</span>{' '}
-                Create a Firebase Auth account for the admin in{' '}
-                <a href="https://console.firebase.google.com/project/talo-guidebook/authentication/users"
-                  target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">
-                  Firebase Console → Authentication
-                </a>
-                {success.adminEmail && <span className="text-slate-400"> ({success.adminEmail})</span>}
+              <li className="flex gap-2.5">
+                <span className="text-indigo-400 font-bold flex-shrink-0">1.</span>
+                <span>
+                  Create a Firebase Auth account for{' '}
+                  <span className="text-white font-semibold">{success.adminEmail}</span>{' '}
+                  in{' '}
+                  <a href="https://console.firebase.google.com/project/talo-guidebook/authentication/users"
+                    target="_blank" rel="noopener noreferrer"
+                    className="text-indigo-400 underline">
+                    Firebase Console → Authentication
+                  </a>
+                </span>
               </li>
-              <li>
-                <span className="text-indigo-400 font-semibold">2.</span>{' '}
-                Run the claims script (requires serviceAccountKey.json):
-                <code className="block mt-2 text-xs text-green-400 bg-slate-900 rounded-lg p-3 font-mono">
-                  node scripts/set-tenant-claims.mjs {success.adminEmail || '<admin-email>'} {success.slug}
-                </code>
+              <li className="flex gap-2.5">
+                <span className="text-indigo-400 font-bold flex-shrink-0">2.</span>
+                <div>
+                  <span>Run the claims script (requires serviceAccountKey.json):</span>
+                  <code className="block mt-2 text-xs text-green-400 bg-slate-900 rounded-lg p-3 font-mono">
+                    node scripts/set-tenant-claims.mjs {success.adminEmail} {success.slug}
+                  </code>
+                </div>
               </li>
-              <li>
-                <span className="text-indigo-400 font-semibold">3.</span>{' '}
-                The admin logs in at <code className="text-slate-300">/admin-v3</code> with their email and password.
+              <li className="flex gap-2.5">
+                <span className="text-indigo-400 font-bold flex-shrink-0">3.</span>
+                <span>Send the admin their login link: <span className="text-slate-300">{adminUrl}</span></span>
               </li>
             </ol>
             <p className="text-xs text-slate-500 mt-4">Steps 1–2 will be automated by a Cloud Function in Phase 3.</p>
@@ -128,7 +157,7 @@ export default function CreateTenant() {
               View Tenant
             </button>
             <button
-              onClick={() => { setSuccess(null); setForm({ name: '', slug: '', plan: 'starter', adminEmail: '' }); setSlugEdited(false) }}
+              onClick={() => { setSuccess(null); setForm({ name: '', slug: '', plan: 'starter', adminEmail: '', phone: '', notes: '' }); setSlugEdited(false) }}
               className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-white transition-colors"
               style={{ border: '1px solid #334155' }}
             >
@@ -146,19 +175,21 @@ export default function CreateTenant() {
         onClick={() => navigate('/super-admin/dashboard')}
         className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors mb-6"
       >
-        <span style={{ fontFamily: 'Material Icons', fontSize: 16 }}>arrow_back</span>
+        <Icon name="arrow_back" size={16} />
         All Tenants
       </button>
 
       <h1 className="text-xl font-bold text-white mb-1">Add Tenant</h1>
-      <p className="text-sm text-slate-400 mb-6">Creates the Firestore tenant doc and slug. Auth setup is a separate step.</p>
+      <p className="text-sm text-slate-400 mb-6">Creates the Firestore tenant record. Firebase Auth setup is a separate step.</p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Company info */}
         <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Company</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Company name</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Company name *</label>
               <input
                 type="text"
                 value={form.name}
@@ -171,11 +202,11 @@ export default function CreateTenant() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                Tenant slug
-                <span className="ml-2 font-normal text-slate-500">— used in guidebook URLs</span>
+                Tenant slug *
+                <span className="ml-2 font-normal text-slate-500">— appears in guidebook URLs</span>
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500 whitespace-nowrap">talorentals.com/guidebook/</span>
+                <span className="text-xs text-slate-500 whitespace-nowrap">…/v3/</span>
                 <input
                   type="text"
                   value={form.slug}
@@ -184,13 +215,21 @@ export default function CreateTenant() {
                   style={{ background: '#0F172A', border: '1px solid #334155' }}
                   required
                 />
+                <span className="text-xs text-slate-500 whitespace-nowrap">/property-name</span>
               </div>
               {RESERVED.has(form.slug) && (
                 <p className="mt-1 text-xs text-red-400">This slug is reserved.</p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Contact info */}
+        <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Admin contact</h2>
+          <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Admin email <span className="font-normal text-slate-500">(for your reference)</span></label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Admin email *</label>
               <input
                 type="email"
                 value={form.adminEmail}
@@ -198,11 +237,36 @@ export default function CreateTenant() {
                 placeholder="admin@sunriserentals.com"
                 className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 style={{ background: '#0F172A', border: '1px solid #334155' }}
+                required
+              />
+              <p className="mt-1 text-xs text-slate-500">This is the login email for the admin panel. Required for sending password resets.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Phone <span className="font-normal text-slate-500">(optional)</span></label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={e => set('phone', e.target.value)}
+                placeholder="+1 (555) 000-0000"
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                style={{ background: '#0F172A', border: '1px solid #334155' }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Internal notes <span className="font-normal text-slate-500">(optional)</span></label>
+              <textarea
+                value={form.notes}
+                onChange={e => set('notes', e.target.value)}
+                placeholder="e.g. Referred by Joe, paying monthly, on Founder trial..."
+                rows={2}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                style={{ background: '#0F172A', border: '1px solid #334155' }}
               />
             </div>
           </div>
         </div>
 
+        {/* Plan */}
         <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Plan</h2>
           <div className="space-y-2">
@@ -210,7 +274,9 @@ export default function CreateTenant() {
               <label
                 key={p.value}
                 className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
-                  form.plan === p.value ? 'bg-indigo-900/40 border border-indigo-700' : 'border hover:bg-slate-700/30'
+                  form.plan === p.value
+                    ? 'bg-indigo-900/40 border border-indigo-700'
+                    : 'border hover:bg-slate-700/30'
                 }`}
                 style={form.plan !== p.value ? { borderColor: '#334155' } : {}}
               >
@@ -224,7 +290,7 @@ export default function CreateTenant() {
                 />
                 <div>
                   <p className="text-sm font-semibold text-white">{p.label}</p>
-                  <p className="text-xs text-slate-400">{p.limit >= 999 ? 'Unlimited properties' : `Up to ${p.limit} properties`}</p>
+                  <p className="text-xs text-slate-400">{p.desc}</p>
                 </div>
               </label>
             ))}

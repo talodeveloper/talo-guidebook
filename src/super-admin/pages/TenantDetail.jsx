@@ -5,6 +5,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '../../firebase'
 import Icon from '../../components/Icon'
 
+const LIVE_BASE = 'https://talodeveloper.github.io/talo-guidebook'
+
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'
 
 function daysSince(ts) {
@@ -19,8 +21,29 @@ function formatDate(ts) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// ─── Confirmation modal ────────────────────────────────────────────────────
+function formatDateShort(ts) {
+  if (!ts) return '—'
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
+// ─── Copy button ──────────────────────────────────────────────────────────
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <button onClick={copy} className="ml-1.5 text-slate-500 hover:text-indigo-400 transition-colors flex-shrink-0" title="Copy">
+      <Icon name={copied ? 'check' : 'content_copy'} size={13} />
+    </button>
+  )
+}
+
+// ─── Confirmation modal ───────────────────────────────────────────────────
 function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
   const [agreed, setAgreed]     = useState(false)
   const [email, setEmail]       = useState('')
@@ -28,15 +51,11 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
   const [error, setError]       = useState('')
   const [busy, setBusy]         = useState(false)
 
-  const isDeactivate = action === 'deactivate'
-  const isSuspend    = action === 'suspend'
-  const isReactivate = action === 'reactivate'
-
   const config = {
     deactivate: {
       title:    'Deactivate account',
       color:    'text-amber-400',
-      border:   'border-amber-700',
+      border:   '#92400e',
       bg:       'bg-amber-900/20',
       iconBg:   'bg-amber-900/50',
       icon:     'block',
@@ -49,12 +68,12 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
     suspend: {
       title:    'Suspend account',
       color:    'text-red-400',
-      border:   'border-red-700',
+      border:   '#991b1b',
       bg:       'bg-red-900/20',
       iconBg:   'bg-red-900/50',
       icon:     'warning',
-      warning:  `You are about to permanently suspend "${tenantName}". The admin panel and all guidebooks will be locked indefinitely. This cannot be undone without manual intervention.`,
-      checkMsg: 'I understand this will permanently suspend the account. All data is preserved — but the account will remain locked until the platform admin manually reactivates it.',
+      warning:  `You are about to permanently suspend "${tenantName}". The admin panel and all guidebooks will be locked indefinitely.`,
+      checkMsg: 'I understand this will permanently suspend the account. All data is preserved — but the account will remain locked until manually reactivated.',
       btnLabel: 'Suspend Account',
       btnStyle: 'bg-red-600 hover:bg-red-500',
       needsAuth: true,
@@ -62,7 +81,7 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
     reactivate: {
       title:    'Reactivate account',
       color:    'text-green-400',
-      border:   'border-green-700',
+      border:   '#166534',
       bg:       'bg-green-900/20',
       iconBg:   'bg-green-900/50',
       icon:     'check_circle',
@@ -85,13 +104,11 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
     setError('')
     setBusy(true)
     try {
-      if (c.needsAuth) {
-        await signInWithEmailAndPassword(auth, email.trim(), password)
-      }
+      if (c.needsAuth) await signInWithEmailAndPassword(auth, email.trim(), password)
       await onConfirmed()
       onClose()
     } catch (e) {
-      if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+      if (['auth/invalid-credential','auth/wrong-password','auth/user-not-found'].includes(e.code)) {
         setError('Incorrect email or password. Please try again.')
       } else {
         setError(e.message || 'Something went wrong.')
@@ -103,9 +120,7 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: '#1E293B', border: `1px solid`, borderColor: c.border.replace('border-', '') }}>
-
-        {/* Header */}
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: '#1E293B', border: `1px solid ${c.border}` }}>
         <div className="flex items-start gap-3 mb-5">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${c.iconBg}`}>
             <Icon name={c.icon} size={20} className={c.color} />
@@ -116,70 +131,43 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
           </div>
         </div>
 
-        {/* Data retention notice */}
-        {!isReactivate && (
+        {action !== 'reactivate' && (
           <div className="rounded-xl px-4 py-3 mb-4 flex items-start gap-2.5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
             <Icon name="shield" size={15} className="text-indigo-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-slate-300 leading-relaxed">
               <span className="font-semibold text-indigo-300">Data is never automatically deleted.</span>{' '}
-              The tenant can log in at any time to retrieve their data and resume from where they left off.
-              Deletion only happens upon explicit request from the tenant, confirmed by the platform admin.
+              The tenant can log in at any time to retrieve their data and resume. Deletion only happens upon explicit tenant request.
             </p>
           </div>
         )}
 
-        {/* Acknowledgement checkbox */}
-        <label className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer mb-4 ${c.bg}`} style={{ border: `1px solid`, borderColor: '#334155' }}>
-          <input
-            type="checkbox"
-            checked={agreed}
-            onChange={e => setAgreed(e.target.checked)}
-            className="mt-0.5 flex-shrink-0 accent-indigo-500"
-          />
+        <label className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer mb-4 ${c.bg}`} style={{ border: '1px solid #334155' }}>
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5 flex-shrink-0 accent-indigo-500" />
           <span className="text-sm text-slate-200 leading-relaxed">{c.checkMsg}</span>
         </label>
 
-        {/* Admin credential verification */}
         {c.needsAuth && (
           <div className="space-y-3 mb-4">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirm your admin credentials</p>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="Your admin email"
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your admin email"
               className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              style={{ background: '#0F172A', border: '1px solid #334155' }}
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Your password"
+              style={{ background: '#0F172A', border: '1px solid #334155' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password"
               className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              style={{ background: '#0F172A', border: '1px solid #334155' }}
-            />
+              style={{ background: '#0F172A', border: '1px solid #334155' }} />
           </div>
         )}
 
-        {error && (
-          <p className="mb-4 text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">{error}</p>
-        )}
+        {error && <p className="mb-4 text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
 
         <div className="flex gap-3">
-          <button
-            onClick={onClose}
+          <button onClick={onClose} disabled={busy}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-            style={{ border: '1px solid #334155' }}
-            disabled={busy}
-          >
+            style={{ border: '1px solid #334155' }}>
             Cancel
           </button>
-          <button
-            onClick={handleConfirm}
-            disabled={busy || !agreed}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-40 ${c.btnStyle}`}
-          >
+          <button onClick={handleConfirm} disabled={busy || !agreed}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-40 ${c.btnStyle}`}>
             {busy ? 'Confirming…' : c.btnLabel}
           </button>
         </div>
@@ -188,17 +176,7 @@ function ConfirmModal({ action, tenantName, onClose, onConfirmed }) {
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────
-
-function Field({ label, value }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-      <p className="text-sm text-white">{value || '—'}</p>
-    </div>
-  )
-}
-
+// ─── Status badge ─────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const styles = {
     active:      'bg-green-900/50 text-green-400 border-green-800',
@@ -214,21 +192,125 @@ function StatusBadge({ status }) {
   )
 }
 
+// ─── Editable contact section ─────────────────────────────────────────────
+function ContactEditor({ tenant, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm]       = useState({ adminEmail: tenant.adminEmail || '', phone: tenant.phone || '', notes: tenant.notes || '' })
+  const [busy, setBusy]       = useState(false)
+  const [error, setError]     = useState('')
+
+  async function save() {
+    if (!form.adminEmail.trim()) { setError('Admin email is required.'); return }
+    setError('')
+    setBusy(true)
+    try {
+      await updateDoc(doc(db, 'tenants', tenant.id), {
+        adminEmail: form.adminEmail.trim(),
+        phone:      form.phone.trim(),
+        notes:      form.notes.trim(),
+      })
+      onSaved({ adminEmail: form.adminEmail.trim(), phone: form.phone.trim(), notes: form.notes.trim() })
+      setEditing(false)
+    } catch (e) {
+      setError('Save failed: ' + e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function cancel() {
+    setForm({ adminEmail: tenant.adminEmail || '', phone: tenant.phone || '', notes: tenant.notes || '' })
+    setError('')
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact info</h2>
+          <button onClick={() => setEditing(true)}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors">
+            <Icon name="edit" size={13} />
+            Edit
+          </button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5">Admin login email</p>
+            <div className="flex items-center">
+              <p className="text-sm text-white font-mono break-all">{tenant.adminEmail || <span className="text-slate-500 font-sans italic">Not set</span>}</p>
+              {tenant.adminEmail && <CopyButton text={tenant.adminEmail} />}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">Send this address a Firebase password reset if the admin is locked out.</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5">Phone</p>
+            <p className="text-sm text-white">{tenant.phone || <span className="text-slate-500 italic">Not set</span>}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5">Internal notes</p>
+            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{tenant.notes || <span className="text-slate-500 italic">None</span>}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #6366f1' }}>
+      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Edit contact info</h2>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-1.5">Admin login email *</label>
+          <input type="email" value={form.adminEmail} onChange={e => setForm(f => ({ ...f, adminEmail: e.target.value }))}
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={{ background: '#0F172A', border: '1px solid #334155' }} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-1.5">Phone</label>
+          <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={{ background: '#0F172A', border: '1px solid #334155' }} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-1.5">Internal notes</label>
+          <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            style={{ background: '#0F172A', border: '1px solid #334155' }} />
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={save} disabled={busy}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={cancel}
+            className="px-4 py-2 rounded-xl text-sm text-slate-400 hover:text-white transition-colors"
+            style={{ border: '1px solid #334155' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────
 export default function TenantDetail() {
   const { tenantId } = useParams()
-  const navigate = useNavigate()
+  const navigate     = useNavigate()
 
-  const [tenant, setTenant]   = useState(null)
+  const [tenant, setTenant]     = useState(null)
   const [liveData, setLiveData] = useState(null)
-  const [counts, setCounts]   = useState({ checkins: null, checkouts: null })
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState('')
-  const [modal, setModal]     = useState(null) // 'deactivate' | 'suspend' | 'reactivate'
+  const [counts, setCounts]     = useState({ checkins: null, checkouts: null })
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
+  const [modal, setModal]       = useState(null)
 
   useEffect(() => {
     async function load() {
-      setLoading(true)
-      setError('')
+      setLoading(true); setError('')
       try {
         const [tenantSnap, liveSnap] = await Promise.all([
           getDoc(doc(db, 'tenants', tenantId)),
@@ -237,7 +319,6 @@ export default function TenantDetail() {
         if (!tenantSnap.exists()) { setError('Tenant not found.'); setLoading(false); return }
         setTenant({ id: tenantSnap.id, ...tenantSnap.data() })
         if (liveSnap.exists()) setLiveData(liveSnap.data())
-
         try {
           const [ci, co] = await Promise.all([
             getCountFromServer(collection(db, 'tenants', tenantId, 'checkins')),
@@ -247,11 +328,8 @@ export default function TenantDetail() {
         } catch {
           setCounts({ checkins: 'n/a', checkouts: 'n/a' })
         }
-      } catch (e) {
-        setError('Failed to load: ' + e.message)
-      } finally {
-        setLoading(false)
-      }
+      } catch (e) { setError('Failed to load: ' + e.message) }
+      finally { setLoading(false) }
     }
     load()
   }, [tenantId])
@@ -262,7 +340,7 @@ export default function TenantDetail() {
     if (action === 'suspend')    updates.suspendedAt   = serverTimestamp()
     if (action === 'reactivate') { updates.deactivatedAt = null; updates.suspendedAt = null }
     await updateDoc(doc(db, 'tenants', tenantId), updates)
-    setTenant(t => ({ ...t, ...updates, status: updates.status }))
+    setTenant(t => ({ ...t, ...updates }))
   }
 
   if (loading) return <div className="p-8 text-center text-slate-500 text-sm">Loading…</div>
@@ -271,14 +349,23 @@ export default function TenantDetail() {
   const properties  = liveData?.data?.propertyList || []
   const propNames   = liveData?.data?.properties   || {}
   const lastPublish = liveData?.updatedAt
-    ? new Date(liveData.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '—'
+    ? new Date(liveData.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
 
   const isActive      = tenant.status === 'active'
   const isDeactivated = tenant.status === 'deactivated'
   const isSuspended   = tenant.status === 'suspended'
   const daysDeactivated = isDeactivated ? daysSince(tenant.deactivatedAt) : 0
   const canSuspend    = isDeactivated && daysDeactivated >= 30
+
+  const adminUrl      = `${LIVE_BASE}/admin-v3`
+  const guidebookBase = `${LIVE_BASE}/v3/${tenant.slug || tenant.id}/`
+
+  const planMeta = {
+    founder: { label: 'Founder', color: 'text-indigo-300', badge: 'bg-indigo-900/30 border-indigo-700 text-indigo-300' },
+    pro:     { label: 'Pro',     color: 'text-amber-300',  badge: 'bg-amber-900/30 border-amber-700 text-amber-300' },
+    starter: { label: 'Starter', color: 'text-slate-300',  badge: 'bg-slate-700 border-slate-600 text-slate-300' },
+  }[tenant.plan] || { label: cap(tenant.plan), color: 'text-slate-300', badge: 'bg-slate-700 border-slate-600 text-slate-300' }
 
   return (
     <>
@@ -292,86 +379,186 @@ export default function TenantDetail() {
       )}
 
       <div className="p-6 max-w-4xl mx-auto">
-        <button
-          onClick={() => navigate('/super-admin/dashboard')}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors mb-6"
-        >
+
+        {/* Back */}
+        <button onClick={() => navigate('/super-admin/dashboard')}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors mb-6">
           <Icon name="arrow_back" size={16} />
           All Tenants
         </button>
 
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-white">{tenant.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <code className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{tenant.slug || tenant.id}</code>
-              <StatusBadge status={tenant.status} />
-              {isDeactivated && (
-                <span className="text-xs text-slate-500">
-                  {daysDeactivated === 0 ? 'today' : `${daysDeactivated}d ago`}
-                  {!canSuspend && ` · ${30 - daysDeactivated}d until suspend available`}
-                </span>
-              )}
-            </div>
+        {/* Page header */}
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-white">{tenant.name}</h1>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <code className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{tenant.slug || tenant.id}</code>
+            <StatusBadge status={tenant.status} />
+            <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${planMeta.badge}`}>{planMeta.label}</span>
+            {isDeactivated && (
+              <span className="text-xs text-slate-500">
+                deactivated {daysDeactivated === 0 ? 'today' : `${daysDeactivated}d ago`}
+                {!canSuspend && ` · ${30 - daysDeactivated}d until suspend available`}
+              </span>
+            )}
           </div>
-          <a
-            href="/admin-v3"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors"
-          >
-            <Icon name="open_in_new" size={15} />
-            Open Admin
-          </a>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-          {/* Account info */}
+          {/* ── Access links (full width) ── */}
+          <div className="rounded-2xl p-5 md:col-span-2" style={{ background: '#1E293B', border: '1px solid #334155' }}>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Access links</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+              <div className="rounded-xl p-3.5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Icon name="admin_panel_settings" size={14} className="text-indigo-400" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Admin panel login</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-indigo-300 break-all">{adminUrl}</p>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <CopyButton text={adminUrl} />
+                    <a href={adminUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-slate-500 hover:text-indigo-400 transition-colors ml-1" title="Open">
+                      <Icon name="open_in_new" size={13} />
+                    </a>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">Share when admin forgets their login URL</p>
+              </div>
+
+              <div className="rounded-xl p-3.5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Icon name="menu_book" size={14} className="text-green-400" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Guidebook base URL</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-green-300 break-all">{guidebookBase}</p>
+                  <CopyButton text={guidebookBase} />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">Append property slug — e.g. <span className="text-slate-400">beach-house</span></p>
+              </div>
+
+            </div>
+          </div>
+
+          {/* ── Contact info (editable) ── */}
+          <ContactEditor
+            tenant={tenant}
+            onSaved={updates => setTenant(t => ({ ...t, ...updates }))}
+          />
+
+          {/* ── Account details ── */}
           <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Account</h2>
             <div className="space-y-3">
-              <Field label="Plan"           value={cap(tenant.plan)} />
-              <Field label="Property limit" value={tenant.propertyLimit >= 999 ? 'Unlimited' : tenant.propertyLimit} />
-              <Field label="Owner UID"      value={tenant.ownerUid} />
-              <Field label="Created"        value={formatDate(tenant.createdAt)} />
-              {isDeactivated && <Field label="Deactivated" value={formatDate(tenant.deactivatedAt)} />}
-              {isSuspended   && <Field label="Suspended"   value={formatDate(tenant.suspendedAt)} />}
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Status</p>
+                <StatusBadge status={tenant.status} />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Plan</p>
+                <p className={`text-sm font-semibold ${planMeta.color}`}>{planMeta.label}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Property limit</p>
+                <p className="text-sm text-white">{tenant.propertyLimit >= 999 ? 'Unlimited' : `${tenant.propertyLimit} properties`}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Account created</p>
+                <p className="text-sm text-white">{formatDateShort(tenant.createdAt)}</p>
+              </div>
+              {isDeactivated && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Deactivated on</p>
+                  <p className="text-sm text-amber-400">{formatDate(tenant.deactivatedAt)}</p>
+                </div>
+              )}
+              {isSuspended && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Suspended on</p>
+                  <p className="text-sm text-red-400">{formatDate(tenant.suspendedAt)}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Usage stats */}
+          {/* ── Usage stats ── */}
           <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Usage</h2>
             <div className="space-y-3">
-              <Field label="Properties"     value={`${properties.length} active`} />
-              <Field label="Last publish"   value={lastPublish} />
-              <Field label="Total check-ins"  value={counts.checkins  === null ? '…' : counts.checkins} />
-              <Field label="Total check-outs" value={counts.checkouts === null ? '…' : counts.checkouts} />
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Active properties</p>
+                <p className="text-sm text-white">
+                  {properties.length}
+                  <span className="text-slate-500"> / {tenant.propertyLimit >= 999 ? '∞' : tenant.propertyLimit}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Last published</p>
+                <p className="text-sm text-white">{lastPublish || <span className="text-slate-500 italic">Never published</span>}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Total guest check-ins</p>
+                <p className="text-sm text-white">{counts.checkins === null ? '…' : counts.checkins}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Total guest check-outs</p>
+                <p className="text-sm text-white">{counts.checkouts === null ? '…' : counts.checkouts}</p>
+              </div>
             </div>
           </div>
 
-          {/* Properties list */}
-          <div className="rounded-2xl p-5 md:col-span-2" style={{ background: '#1E293B', border: '1px solid #334155' }}>
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Properties</h2>
+          {/* ── Billing context ── */}
+          <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Billing</h2>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Current plan</p>
+                <p className={`text-sm font-semibold ${planMeta.color}`}>{planMeta.label}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Data retention</p>
+                <p className="text-xs text-slate-400">Data is <span className="text-white font-semibold">never auto-deleted</span>, regardless of payment or account status. See policy below.</p>
+              </div>
+              <div className="rounded-xl px-3 py-2.5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  <Icon name="info" size={13} className="inline mr-1.5 align-text-bottom" />
+                  Stripe payment integration is coming in Phase 4. Billing history and subscription management will appear here once connected.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Properties list ── */}
+          <div className="rounded-2xl p-5" style={{ background: '#1E293B', border: '1px solid #334155' }}>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+              Properties <span className="font-normal text-slate-600 normal-case">({properties.length})</span>
+            </h2>
             {properties.length === 0 ? (
-              <p className="text-sm text-slate-500">No properties published yet.</p>
+              <p className="text-sm text-slate-500 italic">No properties published yet.</p>
             ) : (
-              <div className="space-y-2">
-                {properties.map(p => {
-                  const info = propNames[p.slug] || {}
+              <div>
+                {properties.map((p, i) => {
+                  const info    = propNames[p.slug] || {}
+                  const propUrl = `${guidebookBase}${p.slug}`
                   return (
-                    <div key={p.slug} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid #334155' }}>
-                      <div className="flex items-center gap-2">
+                    <div key={p.slug} className="flex items-center justify-between py-2.5"
+                      style={{ borderTop: i > 0 ? '1px solid rgba(51,65,85,0.5)' : 'none' }}>
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.status === 'active' ? 'bg-green-500' : 'bg-slate-500'}`} />
-                        <span className="text-sm text-white">{info.name || p.slug}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{info.name || p.slug}</p>
+                          <code className="text-[10px] text-slate-500">{p.slug}</code>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <code className="text-xs text-slate-400">{p.slug}</code>
-                        {p.status !== 'active' && (
-                          <span className="text-xs text-slate-500 font-semibold uppercase">{p.status}</span>
-                        )}
+                      <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                        <CopyButton text={propUrl} />
+                        <a href={propUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-slate-500 hover:text-indigo-400 transition-colors ml-1" title="Open guidebook">
+                          <Icon name="open_in_new" size={13} />
+                        </a>
                       </div>
                     </div>
                   )
@@ -380,109 +567,96 @@ export default function TenantDetail() {
             )}
           </div>
 
-          {/* Data retention policy */}
+          {/* ── Data retention policy (full width) ── */}
           <div className="rounded-2xl p-5 md:col-span-2" style={{ background: '#1E293B', border: '1px solid #334155' }}>
             <div className="flex items-start gap-3">
               <Icon name="shield" size={18} className="text-indigo-400 mt-0.5 flex-shrink-0" />
               <div>
                 <h2 className="text-sm font-bold text-indigo-300 mb-1">Data retention policy</h2>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Tenant data is <span className="text-white font-semibold">never automatically deleted</span> — regardless of account status or how long the account has been inactive.
-                  The tenant can log in at any time to retrieve their content, guest records, and settings, and resume operations from exactly where they left off.
+                  Tenant data is <span className="text-white font-semibold">never automatically deleted</span> — regardless of account status, plan, or how long the account has been inactive.
+                  The tenant can log in at any time to retrieve their content, guest records, and settings, and resume from exactly where they left off.
                   Data is only deleted upon an explicit written request from the tenant, manually confirmed by the platform admin.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Admin setup instructions */}
+          {/* ── Admin setup instructions ── */}
           <div className="rounded-2xl p-5 md:col-span-2" style={{ background: '#1E293B', border: '1px solid #334155' }}>
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Admin access setup</h2>
             <p className="text-xs text-slate-400 mb-3">
               To bind this tenant's admin account to the platform, run the claims script after creating their Firebase Auth user.
               This will be automated by a Cloud Function in Phase 3.
             </p>
-            <code className="block text-xs text-green-400 bg-slate-900 rounded-xl p-3 font-mono">
-              node scripts/set-tenant-claims.mjs &lt;admin-email&gt; {tenant.slug || tenant.id}
+            <code className="block text-xs text-green-400 bg-slate-900 rounded-xl p-3 font-mono break-all">
+              node scripts/set-tenant-claims.mjs {tenant.adminEmail || '<admin-email>'} {tenant.slug || tenant.id}
             </code>
           </div>
 
-          {/* Danger zone */}
+          {/* ── Danger zone ── */}
           <div className="rounded-2xl p-5 md:col-span-2" style={{ background: '#1E293B', border: '1px solid #7f1d1d' }}>
             <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-4">Danger zone</h2>
-
             <div className="space-y-4">
 
-              {/* Deactivate (active → deactivated) */}
               {isActive && (
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-white">Deactivate account</p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Locks the admin panel and guidebooks immediately. Data is fully preserved.
-                      A "Suspend" option becomes available after 30 days.
+                      "Suspend" becomes available after 30 days.
                     </p>
                   </div>
-                  <button
-                    onClick={() => setModal('deactivate')}
-                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-amber-400 border border-amber-700 hover:bg-amber-900/30 transition-colors"
-                  >
+                  <button onClick={() => setModal('deactivate')}
+                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-amber-400 border border-amber-700 hover:bg-amber-900/30 transition-colors">
                     Deactivate
                   </button>
                 </div>
               )}
 
-              {/* Reactivate (deactivated or suspended → active) */}
               {(isDeactivated || isSuspended) && (
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-white">Reactivate account</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Restores full access to the admin panel and guidebooks immediately.
-                      All data and settings are exactly as the tenant left them.
+                      Restores full access immediately. All data and settings are exactly as the tenant left them.
                     </p>
                   </div>
-                  <button
-                    onClick={() => setModal('reactivate')}
-                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-green-400 border border-green-700 hover:bg-green-900/30 transition-colors"
-                  >
+                  <button onClick={() => setModal('reactivate')}
+                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-green-400 border border-green-700 hover:bg-green-900/30 transition-colors">
                     Reactivate
                   </button>
                 </div>
               )}
 
-              {/* Suspend (only available 30+ days after deactivation) */}
               {isDeactivated && (
-                <>
-                  {canSuspend ? (
-                    <div className="flex items-start justify-between gap-4 pt-4" style={{ borderTop: '1px solid #7f1d1d' }}>
-                      <div>
-                        <p className="text-sm font-semibold text-white">Suspend account</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Permanently locks the account indefinitely. Data is still preserved —
-                          the tenant can contact you to reactivate at any time.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setModal('suspend')}
-                        className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-red-400 border border-red-700 hover:bg-red-900/30 transition-colors"
-                      >
-                        Suspend
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="pt-4" style={{ borderTop: '1px solid #334155' }}>
-                      <p className="text-xs text-slate-500">
-                        <Icon name="schedule" size={13} className="inline mr-1 align-text-bottom" />
-                        "Suspend" becomes available {30 - daysDeactivated} day{30 - daysDeactivated !== 1 ? 's' : ''} after deactivation.
+                canSuspend ? (
+                  <div className="flex items-start justify-between gap-4 pt-4" style={{ borderTop: '1px solid #7f1d1d' }}>
+                    <div>
+                      <p className="text-sm font-semibold text-white">Suspend account</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Permanently locks the account indefinitely. Data is preserved — tenant can contact you to reactivate.
                       </p>
                     </div>
-                  )}
-                </>
+                    <button onClick={() => setModal('suspend')}
+                      className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-red-400 border border-red-700 hover:bg-red-900/30 transition-colors">
+                      Suspend
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-4" style={{ borderTop: '1px solid #334155' }}>
+                    <p className="text-xs text-slate-500">
+                      <Icon name="schedule" size={13} className="inline mr-1 align-text-bottom" />
+                      "Suspend" becomes available {30 - daysDeactivated} day{30 - daysDeactivated !== 1 ? 's' : ''} after deactivation.
+                    </p>
+                  </div>
+                )
               )}
 
             </div>
           </div>
+
         </div>
       </div>
     </>
