@@ -16,12 +16,8 @@ export default function AdminV3Login() {
     setBusy(true)
     const result = await adminV3Store.login(email, password)
     setBusy(false)
-    if (result === true) {
-      navigate('/admin-v3/dashboard')
-    } else if (result === 'deactivated') {
-      setError('Your account has been deactivated. Please contact support to reactivate your plan.')
-    } else if (result === 'suspended') {
-      setError('Your account has been suspended. Please contact support to restore access.')
+    if (result === true || result === 'deactivated' || result === 'suspended') {
+      navigate('/admin-v3/dashboard') // Layout will show the payment wall if locked
     } else {
       setError('Incorrect email or password.')
     }

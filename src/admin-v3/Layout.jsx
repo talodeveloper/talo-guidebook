@@ -22,8 +22,62 @@ function SidebarLink({ to, icon, label, end = false }) {
   )
 }
 
+function AccountLockedWall({ navigate }) {
+  const lockedStatus = adminV3Store.isLocked()
+  const isSuspended = lockedStatus === 'suspended'
+
+  function handleSignOut() {
+    adminV3Store.logout()
+    navigate('/admin-v3')
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{ background: isSuspended ? '#fef2f2' : '#fffbeb' }}>
+            <Icon name={isSuspended ? 'lock' : 'pause_circle'} size={28}
+              className={isSuspended ? 'text-red-500' : 'text-amber-500'} />
+          </div>
+          <h1 className="text-xl font-bold text-slate-900 mb-2">
+            {isSuspended ? 'Account suspended' : 'Account deactivated'}
+          </h1>
+          <p className="text-sm text-slate-500 leading-relaxed mb-6">
+            {isSuspended
+              ? 'Your account has been suspended. Please contact support to restore access to your guidebooks and admin panel.'
+              : 'Your account is currently deactivated. Choose a plan below to reactivate and get instant access to your guidebooks and admin panel.'}
+          </p>
+
+          {/* Placeholder — replaced with Stripe plan cards in Phase 4 */}
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 mb-6">
+            <Icon name="credit_card" size={24} className="text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-400">Plan selection coming soon</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Payment integration will be available in a future update.
+              Contact support to reactivate your account manually.
+            </p>
+          </div>
+
+          <a href="mailto:support@talorentals.com"
+            className="block w-full py-2.5 rounded-xl text-sm font-bold text-white mb-3 transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+            Contact Support
+          </a>
+          <button onClick={handleSignOut}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 transition-colors">
+            Sign Out
+          </button>
+        </div>
+        <p className="text-center text-xs text-slate-400 mt-4">TALO Rentals · Admin Panel v3</p>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminV3Layout() {
   const navigate = useNavigate()
+  const locked = adminV3Store.isLocked()
   const [properties, setProperties] = useState(adminV3Store.getPropertiesList())
   const [hasChanges, setHasChanges] = useState(adminV3Store.hasUnsavedChanges())
   const [changeSummary, setChangeSummary] = useState(adminV3Store.getChangeSummary())
@@ -32,6 +86,9 @@ export default function AdminV3Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef(null)
+
+  // Show payment wall if tenant is deactivated or suspended
+  if (locked) return <AccountLockedWall navigate={navigate} />
 
   useEffect(() => {
     return adminV3Store.subscribe(() => {

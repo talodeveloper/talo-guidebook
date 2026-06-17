@@ -386,7 +386,7 @@ export const adminV3Store = {
   async login(email, password) {
     try {
       const { user } = await adminSignIn(email, password)
-      // Check tenant status — deactivated/suspended accounts must not get in
+      // Check tenant status — deactivated/suspended see a payment wall, not the dashboard
       const token = await user.getIdTokenResult(true)
       const tenantId = token.claims.tenantId
       if (tenantId) {
@@ -394,16 +394,22 @@ export const adminV3Store = {
         if (snap.exists()) {
           const status = snap.data().status
           if (status === 'deactivated' || status === 'suspended') {
-            await adminSignOut()
-            return status // 'deactivated' | 'suspended'
+            localStorage.setItem(AUTH_KEY, 'true')
+            localStorage.setItem('talo_admin_v3_locked', status)
+            return status // caller navigates to dashboard; Layout shows the wall
           }
         }
       }
+      localStorage.removeItem('talo_admin_v3_locked')
       localStorage.setItem(AUTH_KEY, 'true')
       return true
     } catch {
       return false
     }
+  },
+
+  isLocked() {
+    return localStorage.getItem('talo_admin_v3_locked') || null // 'deactivated' | 'suspended' | null
   },
 
   logout() { adminSignOut() },

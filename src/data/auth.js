@@ -21,7 +21,7 @@ import {
 setPersistence(auth, browserLocalPersistence).catch(() => {})
 
 // Route-guard flags kept in sync with real Firebase auth state.
-const FLAG_KEYS = ['talo_admin_auth', 'talo_admin_v2_auth', 'talo_admin_v3_auth', 'talo_super_admin_auth']
+const FLAG_KEYS = ['talo_admin_auth', 'talo_admin_v2_auth', 'talo_admin_v3_auth', 'talo_admin_v3_locked', 'talo_super_admin_auth']
 
 // When Firebase reports a real sign-out (explicit logout, expired/revoked
 // token), clear the guard flags so the UI can't show a logged-in shell that
