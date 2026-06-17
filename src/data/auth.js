@@ -39,8 +39,8 @@ onAuthStateChanged(auth, (user) => {
 
 // Attempts a real Firebase sign-in. Throws on bad credentials.
 export async function adminSignIn(email, password) {
-  await signInWithEmailAndPassword(auth, (email || '').trim(), password)
-  return true
+  const result = await signInWithEmailAndPassword(auth, (email || '').trim(), password)
+  return result // { user, operationType, providerId }
 }
 
 // Signs out of Firebase and clears every admin route-guard flag.

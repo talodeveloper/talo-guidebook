@@ -14,10 +14,14 @@ export default function AdminV3Login() {
     e.preventDefault()
     setError('')
     setBusy(true)
-    const ok = await adminV3Store.login(email, password)
+    const result = await adminV3Store.login(email, password)
     setBusy(false)
-    if (ok) {
+    if (result === true) {
       navigate('/admin-v3/dashboard')
+    } else if (result === 'deactivated') {
+      setError('Your account has been deactivated. Please contact support to reactivate your plan.')
+    } else if (result === 'suspended') {
+      setError('Your account has been suspended. Please contact support to restore access.')
     } else {
       setError('Incorrect email or password.')
     }

@@ -2,7 +2,7 @@ import { contentStore } from './contentStore'
 import { properties as defaultProperties } from './properties'
 import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { adminSignIn, adminSignOut, verifyAdminPassword } from './auth'
 import { fsPaths } from './tenant'
 
@@ -385,7 +385,20 @@ export const adminV3Store = {
 
   async login(email, password) {
     try {
-      await adminSignIn(email, password)
+      const { user } = await adminSignIn(email, password)
+      // Check tenant status — deactivated/suspended accounts must not get in
+      const token = await user.getIdTokenResult(true)
+      const tenantId = token.claims.tenantId
+      if (tenantId) {
+        const snap = await getDoc(doc(db, 'tenants', tenantId))
+        if (snap.exists()) {
+          const status = snap.data().status
+          if (status === 'deactivated' || status === 'suspended') {
+            await adminSignOut()
+            return status // 'deactivated' | 'suspended'
+          }
+        }
+      }
       localStorage.setItem(AUTH_KEY, 'true')
       return true
     } catch {
