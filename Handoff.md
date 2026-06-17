@@ -1,6 +1,6 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Productization Phase 1 + Super-Admin Panel (Jun 16 2026)**
+> **Last updated: Super-Admin Panel — Deactivate/Suspend/Reactivate flow (Jun 17 2026)**
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -23,7 +23,7 @@
 
 **Production URL:** `https://talodeveloper.github.io/talo-guidebook/`
 
-**Current live commit (GitHub Pages):** `ff59429` — "Update Handoff: record P1 + P5 progress and next steps" (includes super-admin panel)
+**Current live commit (GitHub Pages):** latest — Super-admin panel with Deactivate/Suspend/Reactivate confirmation flow, icon fixes, and capitalization fixes
 
 **Security state (Session 13.1):** Admin login is now real **Firebase Auth** (email/password) — the hardcoded `Mytalo@2026` is retired everywhere. **Firestore rules are locked**: `v2_content` public-read / auth-write; `v2_checkins` + `v2_checkouts` anonymous-create-only, auth-required to read/manage; deny-all default. Verified in production: guest PII reads are `permission-denied` for anonymous clients, guidebook content still public-readable. The Firebase Auth user lives in Firebase Console → Authentication → Users.
 **Storage rules also locked (Session 13.1):** `properties/**` is public-read, but **create/update/delete require `request.auth != null`** (admin-only) plus the existing image-type/size/no-GIF checks on writes. Verified in production: anonymous upload returns `unauthorized`, public image read still works, authed admin upload confirmed working.
@@ -225,14 +225,21 @@ service firebase.storage {
 - Firestore rules updated: `tenants/{tid}/data/live` public-read; `tenants/{tid}/checkins` auth-only
 - Bug fixes: spurious "unsaved changes" after Firestore hydration; spurious logout on rapid refresh
 
-**Phase 5 — Super-admin panel** (deployed, commit `32ab15d`):
+**Phase 5 — Super-admin panel** (deployed, updated Jun 17 2026):
 - `/super-admin` — completely separate dark-themed panel, no overlap with TALO admin
 - Login verifies Firebase Auth + `role: 'superadmin'` custom claim
-- Dashboard: all tenants, status/plan badges, inline suspend/activate
-- Tenant Detail: properties, guest counts, last publish time, setup instructions
+- Dashboard: all tenants, status/plan badges, "View" to navigate to detail (no inline destructive actions)
+- Tenant Detail: properties, usage stats, last publish time, setup instructions + full Deactivate/Suspend/Reactivate flow
 - Create Tenant: writes `tenants/{slug}` + `slugs/{slug}`, shows claims-script instructions
 - `scripts/make-superadmin.mjs` — grants superadmin access to any Firebase Auth user
 - `scripts/set-tenant-claims.mjs` — sets `{tenantId, role: 'owner'}` on any user
+
+**Deactivate / Suspend / Reactivate flow (TenantDetail):**
+- Status model: `active` → `deactivated` (stores `deactivatedAt`) → after 30 days: `suspended`
+- **Deactivate** button: amber danger zone, opens confirmation modal — checkbox agreement + superadmin email/password re-verification via `signInWithEmailAndPassword`
+- **Suspend** button: only appears 30+ days after deactivation, same modal pattern with stronger red styling
+- **Reactivate** button: always visible for deactivated/suspended accounts, no credential re-check (low risk)
+- **Data retention policy**: data is NEVER auto-deleted. Tenants can log in at any time to retrieve data and resume. Deletion only on explicit written tenant request + manual platform admin confirmation. Policy displayed prominently on detail page and in every modal.
 
 ### 🔲 Remaining Work / Next Up
 
