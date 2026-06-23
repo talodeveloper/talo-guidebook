@@ -1,6 +1,6 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Productization complete — ready for P3/P4 (Jun 17 2026)**
+> **Last updated: P2 started — domain talo.llc, subdomain-per-tenant, resolver wired (Jun 2026)**
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -252,9 +252,13 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 
 ### 🔲 Next — blocked on external dependencies
 
-1. **Domain decision** → unblocks P2. Log into GoDaddy, check which domain(s) you own and whether any have active email (MX records).
+1. **Domain decision** → DECIDED (Jun 2026). Domain is **`talo.llc`**. URL strategy: **subdomain per tenant** — `abcrentals.talo.llc/beach-house` for guidebooks, `abcrentals.talo.llc/admin` for tenant admin, apex `talo.llc` for the marketing/signup site (website itself not built yet). Still TODO: confirm DNS registrar + email host for `talo.llc`.
 2. **Stripe account** → unblocks P3/P4. Create at stripe.com (free).
-3. **P2 — Firebase Hosting + subdomain routing:** Move from GitHub Pages → Firebase Hosting, add wildcard `*.talorentals.com` DNS.
+3. **P2 — Wildcard host + subdomain routing** (IN PROGRESS):
+   - ✅ `getTenantId()` is subdomain-aware (`src/data/tenant.js`): reads tenant from `*.talo.llc` subdomain, `?tenant=` dev override, falls back to `talo` on legacy/localhost hosts (production unaffected). Helpers: `isTenantHost()`, `tenantOrigin()`, `PLATFORM_DOMAIN`, `RESERVED_SUBDOMAINS`.
+   - 🔲 **Host move (only you can do):** Firebase Hosting / GitHub Pages can't do wildcard subdomains. Move the FRONTEND to **Vercel** (or Netlify); keep all Firebase backend. Add domains `talo.llc`, `www.talo.llc`, `*.talo.llc`. DNS: A apex → Vercel IP, CNAME `www` + `*` → `cname.vercel-dns.com`. LEAVE MX + SPF/DKIM/DMARC TXT untouched; add explicit records for mail helper subdomains so the `*` wildcard doesn't shadow them.
+   - 🔲 **Code at cutover (me):** Vite `base` → `/`; host-based routing in `App.jsx` (tenant subdomain → guidebook+admin, apex → signup placeholder, reserved subdomain → super-admin); super-admin "Access links" → `tenantOrigin()`.
+   - Sequencing: current GitHub Pages site stays live until Vercel is verified on a test subdomain, then flip. Zero downtime.
 4. **P3 — Cloud Functions:** Stripe webhook → auto-provisions tenant (Firestore doc + auth claims). Replaces manual script. Also handles: grace period countdown, plan expiry, plan gating.
 5. **P4 — Signup + Stripe:** Public signup/login page → plan selection (filtered by property count) → Stripe Checkout → auto-provisioned admin access. Forgot password via Firebase. Locked interstitial for expired accounts.
 6. **P6 — Support ticket system** (no external dependency; can build anytime, ideally after Stripe). Two halves:
