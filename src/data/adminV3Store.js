@@ -11,13 +11,10 @@ import { fsPaths } from './tenant'
 // must not block the local publish, since the local data is already saved.
 async function pushToFirestore(live) {
   try {
-    await setDoc(doc(db, ...fsPaths.contentBlocks()), { data: live.blocks })
-    if (live.properties) {
-      await setDoc(doc(db, ...fsPaths.contentProperties()), live.properties)
-    }
-    // P1.4 dual-write: mirror the FULL dataset into the tenant-scoped doc.
-    // Not read by the app yet (step 1.6 flips reads here). JSON round-trip
-    // strips any `undefined` (Firestore rejects undefined values).
+    // Tenant-scoped write ONLY. The previous global v2_content/blocks + /properties
+    // writes leaked one tenant's content into the shared legacy docs (cross-tenant
+    // pollution) — removed. firebaseSync reads tenants/{tid}/data/live as primary.
+    // JSON round-trip strips `undefined` (Firestore rejects undefined values).
     const clean = JSON.parse(JSON.stringify(live))
     await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt: Date.now() })
   } catch (err) {
@@ -230,6 +227,34 @@ function buildDefaultDraft() {
   }
 }
 
+// A blank workspace for a genuinely new tenant. NEW tenants must start empty —
+// they must NOT inherit the built-in TALO seed content (which is what
+// buildDefaultDraft returns). Marked `__fromDefaults` so the publish guard
+// knows this draft did not come from the tenant's own real data.
+function buildEmptyDraft() {
+  return {
+    blocks: [],
+    properties: {},
+    faq: {},
+    activities: [],
+    propertyCuration: {},
+    propertyList: [],
+    propertySections: {},
+    globalHero: { day: null, dayPath: null, night: null, nightPath: null },
+    activityCategories: JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES)),
+    __fromDefaults: true,
+  }
+}
+
+// Count uploaded (Firebase Storage) images anywhere in a dataset. Used as the
+// publish safety signal: built-in/default content references only bundled
+// /photos/ images (count 0), whereas a tenant's real published content has
+// uploaded images (count > 0).
+function uploadedImageCount(obj) {
+  try { return (JSON.stringify(obj).match(/firebasestorage/g) || []).length }
+  catch { return 0 }
+}
+
 // ── Pure helpers shared by admin + guidebook ─────────────────────────────────
 
 // Re-orders a section's blocks using the per-property order overlay
@@ -393,9 +418,9 @@ async function hydrateFromFirestore() {
       writeJSON(DRAFT_KEY, _draft)
       _ready = true
     } else {
-      // Genuinely new tenant with nothing published yet — defaults are safe to
-      // persist here because there is no live data to overwrite.
-      _draft = postProcessDraft(buildDefaultDraft())
+      // Genuinely new tenant with nothing published yet — start BLANK (never the
+      // TALO seed). Safe to persist because there is no live data to overwrite.
+      _draft = postProcessDraft(buildEmptyDraft())
       writeJSON(DRAFT_KEY, _draft)
       _ready = true
     }
@@ -426,12 +451,10 @@ if (_draft) {
   writeJSON(DRAFT_KEY, _draft)
   _ready = true
 } else {
-  // Fresh browser/device, empty localStorage. Render placeholder defaults but
-  // do NOT persist them or allow publishing — load real content from Firestore.
-  _draft = buildDefaultDraft()
-  if (_draft && !_draft.activityCategories) {
-    _draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
-  }
+  // Fresh browser/device, empty localStorage. Render a blank placeholder (NOT
+  // the TALO seed) but do NOT persist it or allow publishing — load real
+  // content from Firestore first.
+  _draft = buildEmptyDraft()
   _ready = false
   _hydrating = true
   hydrateFromFirestore()
@@ -1143,12 +1166,28 @@ export const adminV3Store = {
 
   // ── Publish / Discard ─────────────────────────────────────────────────────
 
-  publish() {
-    // Safety: never publish before authoritative data is loaded — this is what
-    // stops a fresh browser/device from overwriting live content with defaults.
+  async publish() {
+    // Safety: never publish before authoritative data is loaded — this stops a
+    // fresh browser/device from overwriting live content with defaults.
     if (!_ready) {
       console.warn('[adminV3Store] publish blocked — content not loaded yet')
       return false
+    }
+    // Hard safety net against the recurring data-loss bug: refuse to overwrite
+    // real published content with defaults/blank. Built-in/default content has
+    // ZERO uploaded (firebasestorage) images; a tenant's real content has them.
+    // If Firestore already has uploads but this draft has none, it's a defaults
+    // revert (e.g. a stale tab) — block it, no matter how the draft got stale.
+    try {
+      const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
+      const remote = snap.exists() ? snap.data()?.data : null
+      if (remote && uploadedImageCount(remote) > 0 && uploadedImageCount(_draft) === 0) {
+        console.warn('[adminV3Store] publish BLOCKED — would revert live uploaded images to defaults')
+        return 'blocked-defaults'
+      }
+    } catch (err) {
+      console.warn('[adminV3Store] publish precheck failed — blocking to be safe', err)
+      return 'blocked-error'
     }
     _live = JSON.parse(JSON.stringify(_draft))
     writeJSON(ADMIN_V3_LIVE_KEY, _live)
@@ -1163,10 +1202,11 @@ export const adminV3Store = {
     pushToFirestore(_live)
     contentStore.reloadFromLive(_live.blocks)
     notify()
+    return true
   },
 
   discardDraft() {
-    _draft = _live ? JSON.parse(JSON.stringify(_live)) : buildDefaultDraft()
+    _draft = _live ? JSON.parse(JSON.stringify(_live)) : buildEmptyDraft()
     writeJSON(DRAFT_KEY, _draft)
     notify()
   },
