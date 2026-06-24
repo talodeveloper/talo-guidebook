@@ -4,7 +4,7 @@ import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { adminSignIn, adminSignOut, verifyAdminPassword } from './auth'
-import { fsPaths } from './tenant'
+import { fsPaths, getTenantId, DEFAULT_TENANT_ID } from './tenant'
 
 // Push a live snapshot to Firestore so the cross-tab/cross-session listener
 // can't overwrite our changes with stale data. Best-effort — failure here
@@ -436,6 +436,21 @@ async function hydrateFromFirestore() {
 
 _live = readJSON(ADMIN_V3_LIVE_KEY)
 _draft = readJSON(DRAFT_KEY)
+
+// Self-heal contaminated storage: a NON-default tenant must never carry the
+// TALO seed content. This happens to any browser that opened a new tenant's
+// admin BEFORE the buildEmptyDraft fix (it persisted the TALO defaults). Detect
+// the talo signature (talo's base property slugs) on a non-talo tenant, discard
+// the local copy, and re-hydrate fresh (which yields a blank workspace).
+if (
+  getTenantId() !== DEFAULT_TENANT_ID &&
+  Array.isArray(_draft?.propertyList) &&
+  _draft.propertyList.some(p => BASE_PROPERTY_SLUGS.includes(p.slug))
+) {
+  _draft = null
+  _live = null
+  try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(ADMIN_V3_LIVE_KEY) } catch { /* ignore */ }
+}
 
 if (_draft) {
   // Fast path: a local working copy exists — trust it (unchanged behavior).
