@@ -75,9 +75,46 @@ function AccountLockedWall({ navigate }) {
   )
 }
 
+function LoadingContent() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-sm text-slate-500">Loading your content…</p>
+      </div>
+    </div>
+  )
+}
+
+function LoadContentError({ navigate }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5">
+          <Icon name="cloud_off" size={28} className="text-amber-500" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">Couldn't load your content</h1>
+        <p className="text-sm text-slate-500 leading-relaxed mb-6">
+          We couldn't reach your saved content just now. To protect your live data,
+          editing and publishing stay disabled until it loads. Check your connection
+          and try again.
+        </p>
+        <button onClick={() => window.location.reload()}
+          className="block w-full py-2.5 rounded-xl text-sm font-bold text-white mb-3 transition-opacity hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+          Reload
+        </button>
+        <button onClick={() => { adminV3Store.logout(); navigate('/admin-v3') }}
+          className="w-full py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 transition-colors">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminV3Layout() {
   const navigate = useNavigate()
-  const locked = adminV3Store.isLocked()
   const [properties, setProperties] = useState(adminV3Store.getPropertiesList())
   const [hasChanges, setHasChanges] = useState(adminV3Store.hasUnsavedChanges())
   const [changeSummary, setChangeSummary] = useState(adminV3Store.getChangeSummary())
@@ -85,16 +122,17 @@ export default function AdminV3Layout() {
   const [publishedFlash, setPublishedFlash] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [ready, setReady] = useState(adminV3Store.isReady())
+  const [hydrating, setHydrating] = useState(adminV3Store.isHydrating())
   const dropdownRef = useRef(null)
-
-  // Show payment wall if tenant is deactivated or suspended
-  if (locked) return <AccountLockedWall navigate={navigate} />
 
   useEffect(() => {
     return adminV3Store.subscribe(() => {
       setProperties(adminV3Store.getPropertiesList())
       setHasChanges(adminV3Store.hasUnsavedChanges())
       setChangeSummary(adminV3Store.getChangeSummary())
+      setReady(adminV3Store.isReady())
+      setHydrating(adminV3Store.isHydrating())
     })
   }, [])
 
@@ -108,6 +146,11 @@ export default function AdminV3Layout() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showDropdown])
+
+  // Conditional screens — placed AFTER all hooks (rules of hooks).
+  if (adminV3Store.isLocked()) return <AccountLockedWall navigate={navigate} />
+  if (hydrating) return <LoadingContent />
+  if (!ready) return <LoadContentError navigate={navigate} />
 
   const handleLogout = () => {
     adminV3Store.logout()

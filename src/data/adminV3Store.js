@@ -351,33 +351,90 @@ function migrateImages(draft) {
 let _draft = null
 let _live = null
 let _listeners = []
+// _ready: true only once we hold AUTHORITATIVE data — a local working copy, the
+// tenant's published content loaded from Firestore, or a confirmed brand-new
+// tenant. Publishing is blocked until then, so a fresh browser/device can never
+// overwrite live data with the built-in defaults (the bug that reverted live
+// content when the admin was opened on a new origin with empty localStorage).
+// _hydrating: true while we load from Firestore.
+let _ready = false
+let _hydrating = false
 
 function notify() { _listeners.forEach(fn => fn()) }
 
+// Shared post-load processing for a draft: migrations + one-time backfills.
+function postProcessDraft(draft) {
+  draft = migrateFaqStructures(draft)
+  draft = migrateHawkBedroomImages(draft, DRAFT_KEY)
+  if (draft && !draft.activityCategories) {
+    draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
+  }
+  if (draft?.propertyList?.some(p => p.status === 'inactive' && !p.deactivatedAt)) {
+    draft.propertyList = draft.propertyList.map(p =>
+      p.status === 'inactive' && !p.deactivatedAt
+        ? { ...p, deactivatedAt: new Date().toISOString() }
+        : p
+    )
+  }
+  return draft
+}
+
+// When a browser has no local copy, load THIS tenant's published content from
+// Firestore instead of treating the built-in defaults as publishable.
+async function hydrateFromFirestore() {
+  try {
+    const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
+    const full = snap.exists() ? snap.data()?.data : null
+    if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
+      // Real published content exists — adopt it as both live and draft.
+      _live = migrateHawkBedroomImages(full, ADMIN_V3_LIVE_KEY)
+      _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
+      writeJSON(ADMIN_V3_LIVE_KEY, _live)
+      writeJSON(DRAFT_KEY, _draft)
+      _ready = true
+    } else {
+      // Genuinely new tenant with nothing published yet — defaults are safe to
+      // persist here because there is no live data to overwrite.
+      _draft = postProcessDraft(buildDefaultDraft())
+      writeJSON(DRAFT_KEY, _draft)
+      _ready = true
+    }
+  } catch (err) {
+    // Fail safe: keep publish disabled rather than risk clobbering live data.
+    console.warn('[adminV3Store] could not load live content; publish stays disabled until reload', err)
+    _ready = false
+  } finally {
+    _hydrating = false
+    notify()
+  }
+}
+
 _live = readJSON(ADMIN_V3_LIVE_KEY)
 _draft = readJSON(DRAFT_KEY)
-if (!_draft) {
-  _draft = _live ? JSON.parse(JSON.stringify(_live)) : buildDefaultDraft()
-  writeJSON(DRAFT_KEY, _draft)
-} else {
+
+if (_draft) {
+  // Fast path: a local working copy exists — trust it (unchanged behavior).
   _draft = migrateImages(_draft)
-}
-_draft = migrateFaqStructures(_draft)
-_draft = migrateHawkBedroomImages(_draft, DRAFT_KEY)
-if (_live) _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
-// Seed dynamic activity categories for drafts created before they were data-driven
-if (_draft && !_draft.activityCategories) {
-  _draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
+  _draft = postProcessDraft(_draft)
+  if (_live) _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
   writeJSON(DRAFT_KEY, _draft)
-}
-// Backfill deactivatedAt for properties deactivated before cool-off tracking existed
-if (_draft?.propertyList?.some(p => p.status === 'inactive' && !p.deactivatedAt)) {
-  _draft.propertyList = _draft.propertyList.map(p =>
-    p.status === 'inactive' && !p.deactivatedAt
-      ? { ...p, deactivatedAt: new Date().toISOString() }
-      : p
-  )
+  _ready = true
+} else if (_live) {
+  // A published copy exists locally but no draft — derive the draft from it.
+  _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
+  _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
   writeJSON(DRAFT_KEY, _draft)
+  _ready = true
+} else {
+  // Fresh browser/device, empty localStorage. Render placeholder defaults but
+  // do NOT persist them or allow publishing — load real content from Firestore.
+  _draft = buildDefaultDraft()
+  if (_draft && !_draft.activityCategories) {
+    _draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
+  }
+  _ready = false
+  _hydrating = true
+  hydrateFromFirestore()
 }
 
 export const adminV3Store = {
@@ -414,7 +471,13 @@ export const adminV3Store = {
 
   logout() { adminSignOut() },
 
+  // True once authoritative data is loaded; false while loading from Firestore
+  // on a fresh browser/device. The UI uses these to block publishing defaults.
+  isReady: () => _ready,
+  isHydrating: () => _hydrating,
+
   hasUnsavedChanges() {
+    if (!_ready) return false
     if (!_live) return true
     return JSON.stringify(_draft) !== JSON.stringify(_live)
   },
@@ -1081,6 +1144,12 @@ export const adminV3Store = {
   // ── Publish / Discard ─────────────────────────────────────────────────────
 
   publish() {
+    // Safety: never publish before authoritative data is loaded — this is what
+    // stops a fresh browser/device from overwriting live content with defaults.
+    if (!_ready) {
+      console.warn('[adminV3Store] publish blocked — content not loaded yet')
+      return false
+    }
     _live = JSON.parse(JSON.stringify(_draft))
     writeJSON(ADMIN_V3_LIVE_KEY, _live)
     // Mirror to V2 live so `contentStore` (which reads V2) sees it on fresh
