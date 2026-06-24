@@ -63,6 +63,28 @@ export function tenantOrigin(tenantId) {
   return `https://${tenantId}.${PLATFORM_DOMAIN}`
 }
 
+// Routing mode for the current host:
+//   'tenant' — a {tenant}.talo.llc subdomain → clean guidebook URLs at root
+//   'apex'   — talo.llc / www.talo.llc → marketing + signup (placeholder)
+//   'legacy' — GitHub Pages, localhost, anything else → current route tree
+export function getHostMode() {
+  if (typeof window === 'undefined') return 'legacy'
+  if (isTenantHost()) return 'tenant'
+  const host = window.location.hostname || ''
+  if (host === PLATFORM_DOMAIN || host === 'www.' + PLATFORM_DOMAIN) return 'apex'
+  return 'legacy'
+}
+
+// Host-aware guidebook path. On a tenant subdomain the property sits at the URL
+// root (talo.llc → /beach-house); elsewhere it keeps the /v3 prefix so the
+// existing GitHub Pages deployment is unchanged.
+//   guidebookPath('beach-house')            -> '/beach-house'      (tenant)
+//   guidebookPath('beach-house', '/faq')    -> '/beach-house/faq'  (tenant)
+//   guidebookPath('beach-house')            -> '/v3/beach-house'   (legacy)
+export function guidebookPath(slug, sub = '') {
+  return getHostMode() === 'tenant' ? `/${slug}${sub}` : `/v3/${slug}${sub}`
+}
+
 // Firestore content document paths. Returned as segment arrays so callers can
 // spread them into doc(db, ...): e.g. doc(db, ...fsPaths.contentBlocks()).
 //

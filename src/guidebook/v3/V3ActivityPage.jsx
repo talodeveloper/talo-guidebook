@@ -3,6 +3,7 @@ import { useOutletContext, useParams, Link } from 'react-router-dom'
 import Icon from '../../components/Icon'
 import { NightModeCtx, V3RightSidebar, ActivityCard, readV3Data, buildGuidebookSections } from './V3GuidebookPage'
 import { ACTIVITY_CATEGORIES } from '../../data/adminV3Store'
+import { guidebookPath } from '../../data/tenant'
 
 const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
 const PRIMARY   = '#C84B31'
@@ -119,7 +120,7 @@ export default function V3ActivityPage() {
             style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 50%, transparent 100%)' }} />
           <div className="absolute top-0 left-0 right-0 h-px bg-white/25" />
           <div className="relative z-10 px-6 py-4 flex items-center justify-between">
-            <Link to={`/v3/${slug}`}
+            <Link to={guidebookPath(slug)}
               className="flex items-center gap-2 text-white/80 hover:text-white transition-colors text-[13px] font-semibold">
               <Icon name="arrow_back" size={16} className="text-white/80" />
               Back to Guidebook
@@ -143,7 +144,7 @@ export default function V3ActivityPage() {
                     <span className="truncate">{s.label}</span>
                   </div>
                 ) : (
-                  <Link key={s.key} to={`/v3/${slug}#${s.key}`}
+                  <Link key={s.key} to={guidebookPath(slug, `#${s.key}`)}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"
                     style={{ color: mutedColor, fontWeight: 500 }}
                     onMouseEnter={e => { e.currentTarget.style.color = primary; e.currentTarget.style.background = `${primary}12` }}
@@ -153,13 +154,13 @@ export default function V3ActivityPage() {
                   </Link>
                 ))}
                 <div className="pt-2 mt-1" style={{ borderTop: `1px solid ${border}` }}>
-                  <Link to={`/v3/${slug}/faq`}
+                  <Link to={guidebookPath(slug, '/faq')}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors hover:opacity-80 font-semibold"
                     style={{ color: nightMode ? '#A78BFA' : '#D97706', background: nightMode ? 'rgba(109,40,217,0.15)' : 'rgba(253,230,138,0.3)' }}>
                     <Icon name="help" size={14} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} />
                     <span>FAQ</span>
                   </Link>
-                  <Link to={`/v3/${slug}/checkout`}
+                  <Link to={guidebookPath(slug, '/checkout')}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"
                     style={{ color: mutedColor }}>
                     <Icon name="logout" size={14} />
@@ -205,7 +206,7 @@ export default function V3ActivityPage() {
               </div>
 
               <div className="mt-8">
-                <Link to={`/v3/${slug}`}
+                <Link to={guidebookPath(slug)}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
                   style={{ color: primary }}>
                   <Icon name="arrow_back" size={13} /> Return to Guidebook

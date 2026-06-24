@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useOutletContext, Link, useParams } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { ADMIN_V3_LIVE_KEY, applyPropertyBlockOrder, buildV3Sections } from '../../data/adminV3Store'
+import { guidebookPath } from '../../data/tenant'
 
 // Read published V3 data.
 // Order: admin's own `_live` (so an admin viewing the guidebook sees their
@@ -338,14 +339,14 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
         </div>
         <div className={`grid gap-2 ${checkInEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {checkInEnabled && (
-            <Link to={`/v3/${slug}/checkin`}
+            <Link to={guidebookPath(slug, '/checkin')}
               className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
               style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
               <Icon name="login" size={13} className="text-white" />
               Check In
             </Link>
           )}
-          <Link to={`/v3/${slug}/checkout`}
+          <Link to={guidebookPath(slug, '/checkout')}
             className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
             style={{ background: SUNSET }}>
             <Icon name="logout" size={13} className="text-white" />
@@ -384,7 +385,7 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
       </div>
       )}
 
-      <Link to={`/v3/${slug}/faq`}
+      <Link to={guidebookPath(slug, '/faq')}
         className="block rounded-2xl p-5 text-white shadow-md hover:scale-[1.02] transition-transform"
         style={{ background: faqGradient }}>
         <div className="flex items-center gap-2 mb-3">
@@ -619,7 +620,7 @@ export default function V3GuidebookPage() {
             {topLevelSections.map((s) => {
               if (s.page) {
                 return (
-                  <Link key={s.key} to={`/v3/${slug}/activities`} onClick={() => setTocOpen(false)}
+                  <Link key={s.key} to={guidebookPath(slug, '/activities')} onClick={() => setTocOpen(false)}
                     className="flex items-center gap-3 px-4 py-3 text-label-md border-b font-semibold"
                     style={{ borderColor: t.BORDER, color: nightMode ? '#86EFAC' : '#15803D', background: nightMode ? 'rgba(22,101,52,0.2)' : 'rgba(220,252,231,0.5)' }}>
                     <Icon name={s.icon} size={15} style={{ color: nightMode ? '#86EFAC' : '#15803D' }} />
@@ -659,19 +660,19 @@ export default function V3GuidebookPage() {
                 </React.Fragment>
               )
             })}
-            <Link to={`/v3/${slug}/faq`} onClick={() => setTocOpen(false)}
+            <Link to={guidebookPath(slug, '/faq')} onClick={() => setTocOpen(false)}
               className="flex items-center gap-3 px-4 py-3 text-label-md border-b font-semibold"
               style={{ borderColor: t.BORDER, color: nightMode ? '#A78BFA' : '#D97706', background: nightMode ? 'rgba(109,40,217,0.15)' : 'rgba(253,230,138,0.25)' }}>
               <Icon name="help" size={15} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} /> FAQ
             </Link>
             {checkInEnabled && (
-              <Link to={`/v3/${slug}/checkin`} onClick={() => setTocOpen(false)}
+              <Link to={guidebookPath(slug, '/checkin')} onClick={() => setTocOpen(false)}
                 className="flex items-center gap-3 px-4 py-3 text-label-md border-b font-semibold"
                 style={{ borderColor: t.BORDER, color: '#2563EB', background: 'rgba(37,99,235,0.08)' }}>
                 <Icon name="login" size={15} style={{ color: '#2563EB' }} /> Check In
               </Link>
             )}
-            <Link to={`/v3/${slug}/checkout`} onClick={() => setTocOpen(false)}
+            <Link to={guidebookPath(slug, '/checkout')} onClick={() => setTocOpen(false)}
               className="flex items-center gap-3 px-4 py-3 text-label-md transition-colors" style={{ color: t.MUTED }}>
               <Icon name="logout" size={15} /> Check-Out
             </Link>
@@ -710,13 +711,13 @@ export default function V3GuidebookPage() {
                 <Icon name="map" size={13} /> Map
               </a>
               {checkInEnabled && (
-                <Link to={`/v3/${slug}/checkin`}
+                <Link to={guidebookPath(slug, '/checkin')}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
                   style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
                   <Icon name="login" size={13} /> Check In
                 </Link>
               )}
-              <Link to={`/v3/${slug}/checkout`}
+              <Link to={guidebookPath(slug, '/checkout')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
                 style={{ background: t.SUNSET }}>
                 <Icon name="logout" size={13} /> Check Out
@@ -739,7 +740,7 @@ export default function V3GuidebookPage() {
                 // Page-type entries (Activity Center) open their own page, like FAQ
                 if (s.page) {
                   return (
-                    <Link key={s.key} to={`/v3/${slug}/activities`}
+                    <Link key={s.key} to={guidebookPath(slug, '/activities')}
                       className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors hover:opacity-80 font-semibold"
                       style={{ color: nightMode ? '#86EFAC' : '#15803D', background: nightMode ? 'rgba(22,101,52,0.2)' : 'rgba(220,252,231,0.6)' }}>
                       <Icon name={s.icon} size={14} style={{ color: nightMode ? '#86EFAC' : '#15803D' }} />
@@ -780,21 +781,21 @@ export default function V3GuidebookPage() {
                 )
               })}
               <div className="pt-2 mt-1" style={{ borderTop: `1px solid ${t.BORDER}` }}>
-                <Link to={`/v3/${slug}/faq`}
+                <Link to={guidebookPath(slug, '/faq')}
                   className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors hover:opacity-80 font-semibold"
                   style={{ color: nightMode ? '#A78BFA' : '#D97706', background: nightMode ? 'rgba(109,40,217,0.15)' : 'rgba(253,230,138,0.3)' }}>
                   <Icon name="help" size={14} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} />
                   <span>FAQ</span>
                 </Link>
                 {checkInEnabled && (
-                  <Link to={`/v3/${slug}/checkin`}
+                  <Link to={guidebookPath(slug, '/checkin')}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors font-semibold"
                     style={{ color: '#2563EB', background: 'rgba(37,99,235,0.1)' }}>
                     <Icon name="login" size={14} style={{ color: '#2563EB' }} />
                     <span>Check In</span>
                   </Link>
                 )}
-                <Link to={`/v3/${slug}/checkout`}
+                <Link to={guidebookPath(slug, '/checkout')}
                   className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"
                   style={{ color: t.MUTED }}>
                   <Icon name="logout" size={14} />
@@ -809,7 +810,7 @@ export default function V3GuidebookPage() {
             {sections.filter((s) => !s.parentKey).map(renderSection)}
 
             <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${t.BORDER}` }}>
-              <Link to={`/v3/${slug}/checkout`}
+              <Link to={guidebookPath(slug, '/checkout')}
                 className="flex items-center justify-between rounded-2xl p-5 text-white hover:opacity-90 transition-opacity group shadow-md"
                 style={{ background: t.SUNSET }}>
                 <div>

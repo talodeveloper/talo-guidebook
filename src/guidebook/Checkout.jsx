@@ -4,6 +4,7 @@ import { contentStore } from '../data/contentStore'
 import { db } from '../firebase'
 import { collection, addDoc } from 'firebase/firestore'
 import Icon from '../components/Icon'
+import { getHostMode, guidebookPath } from '../data/tenant'
 
 function ContentBlock({ block }) {
   return (
@@ -28,9 +29,10 @@ export default function Checkout() {
   const { property } = useOutletContext()
   const { slug } = useParams()
   const location = useLocation()
+  const onSubdomain = getHostMode() === 'tenant'
   const isV2 = location.pathname.startsWith('/v2/')
-  const isV3 = location.pathname.startsWith('/v3/')
-  const backPath = isV2 ? `/v2/${slug}` : isV3 ? `/v3/${slug}` : `/${slug}`
+  const isV3 = onSubdomain || location.pathname.startsWith('/v3/')
+  const backPath = isV2 ? `/v2/${slug}` : isV3 ? guidebookPath(slug) : `/${slug}`
   const [blocks, setBlocks] = useState([])
   const [checked, setChecked] = useState({})
 

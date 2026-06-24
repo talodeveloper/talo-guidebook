@@ -4,6 +4,7 @@ import { FAQ_DATA } from '../../data/faqData'
 import Icon from '../../components/Icon'
 import { NightModeCtx, V3RightSidebar, readV3Data, buildGuidebookSections } from './V3GuidebookPage'
 import { ADMIN_V3_LIVE_KEY, buildFaqList } from '../../data/adminV3Store'
+import { guidebookPath } from '../../data/tenant'
 
 const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
 const PRIMARY   = '#C84B31'
@@ -91,7 +92,7 @@ export default function V3FAQPage() {
             style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 50%, transparent 100%)' }} />
           <div className="absolute top-0 left-0 right-0 h-px bg-white/25" />
           <div className="faq-page-header relative z-10 px-6 py-4 flex items-center justify-between">
-            <Link to={`/v3/${slug}`}
+            <Link to={guidebookPath(slug)}
               className="flex items-center gap-2 text-white/80 hover:text-white transition-colors text-[13px] font-semibold">
               <Icon name="arrow_back" size={16} className="text-white/80" />
               Back to Guidebook
@@ -108,7 +109,7 @@ export default function V3FAQPage() {
               <p className="text-[10px] font-bold uppercase tracking-widest mb-3 px-2" style={{ color: mutedColor }}>Contents</p>
               <nav className="space-y-0.5">
                 {topLevelSections.map((s) => (
-                  <Link key={s.key} to={s.page ? `/v3/${slug}/activities` : `/v3/${slug}#${s.key}`}
+                  <Link key={s.key} to={s.page ? guidebookPath(slug, '/activities') : guidebookPath(slug, `#${s.key}`)}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"
                     style={{ color: mutedColor, fontWeight: 500 }}
                     onMouseEnter={e => { e.currentTarget.style.color = primary; e.currentTarget.style.background = `${primary}12` }}
@@ -123,7 +124,7 @@ export default function V3FAQPage() {
                     <Icon name="help" size={14} style={{ color: nightMode ? '#A78BFA' : '#D97706' }} />
                     <span>FAQ</span>
                   </div>
-                  <Link to={`/v3/${slug}/checkout`}
+                  <Link to={guidebookPath(slug, '/checkout')}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors"
                     style={{ color: mutedColor }}
                     onMouseEnter={e => { e.currentTarget.style.color = primary }}
@@ -176,7 +177,7 @@ export default function V3FAQPage() {
               </div>
 
               <div className="faq-back-link mt-8">
-                <Link to={`/v3/${slug}`}
+                <Link to={guidebookPath(slug)}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
                   style={{ color: primary }}>
                   <Icon name="arrow_back" size={13} /> Return to Guidebook

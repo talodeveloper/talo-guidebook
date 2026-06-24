@@ -3,6 +3,7 @@ import { adminStore } from './data/adminStore'
 import { adminV2Store } from './data/adminV2Store'
 import { adminV3Store } from './data/adminV3Store'
 import { isSuperAdminAuthenticated } from './data/superAdminAuth'
+import { getHostMode } from './data/tenant'
 import './data/firebaseSync' // initialises Firestore real-time listeners for V2
 
 // Super-admin panel
@@ -83,9 +84,60 @@ function RequireAuthV3({ children }) {
   return adminV3Store.isAuthenticated() ? children : <Navigate to="/admin-v3" replace />
 }
 
+// Routes served on a tenant subdomain ({tenant}.talo.llc): the guest guidebook
+// lives at the URL root (/beach-house), and the tenant admin keeps /admin-v3
+// for now (cleaned to /admin in a later step). The tenant is resolved from the
+// subdomain by getTenantId(), so no /v3 or tenant segment is needed in the path.
+function TenantRoutes() {
+  return (
+    <Routes>
+      {/* Tenant admin */}
+      <Route path="/admin-v3">
+        <Route index element={<AdminV3Login />} />
+        <Route
+          element={
+            <RequireAuthV3>
+              <AdminV3Layout />
+            </RequireAuthV3>
+          }
+        >
+          <Route path="dashboard" element={<AdminV3Dashboard />} />
+          <Route path="activities" element={<AdminV3GlobalActivities />} />
+          <Route path="global" element={<AdminV3GlobalContent />} />
+          <Route path="add-property" element={<AdminV3AddProperty />} />
+          <Route path="checkins" element={<AdminV2CheckIns />} />
+          <Route path="checkouts" element={<AdminV2Checkouts />} />
+          <Route path="guest-database" element={<AdminV2GuestDatabase />} />
+          <Route path="property/:slug" element={<AdminV3PropertyHome />} />
+          <Route path="property/:slug/info" element={<AdminV3PropertyInfo />} />
+          <Route path="property/:slug/faq" element={<AdminV3FAQEditor />} />
+          <Route path="property/:slug/activities" element={<AdminV3PropertyActivities />} />
+          <Route path="property/:slug/sections" element={<AdminV3PropertySections />} />
+          <Route path="property/:slug/section/:sectionKey" element={<AdminV3SectionEditor />} />
+        </Route>
+      </Route>
+
+      {/* Guest guidebook at the clean URL root (static /admin-v3 outranks /:slug) */}
+      <Route path="/:slug" element={<V3GuidebookLayout />}>
+        <Route index element={<V3GuidebookPage />} />
+        <Route path="faq" element={<V3FAQPage />} />
+        <Route path="activities" element={<V3ActivityPage />} />
+        <Route path="checkin" element={<V3CheckInPage />} />
+        <Route path="checkout" element={<Checkout />} />
+      </Route>
+
+      {/* Root + unknown → tenant admin (owner landing) */}
+      <Route path="/" element={<Navigate to="/admin-v3" replace />} />
+      <Route path="*" element={<Navigate to="/admin-v3" replace />} />
+    </Routes>
+  )
+}
+
 export default function App() {
+  const hostMode = getHostMode()
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      {hostMode === 'tenant' ? <TenantRoutes /> : (
       <Routes>
         <Route path="/" element={<Navigate to="/admin" replace />} />
 
@@ -200,6 +252,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
+      )}
     </BrowserRouter>
   )
 }

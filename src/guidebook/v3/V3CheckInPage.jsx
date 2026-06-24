@@ -3,6 +3,7 @@ import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { NightModeCtx, readV3Data } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
+import { guidebookPath } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db } from '../../firebase'
 import { collection, addDoc } from 'firebase/firestore'
@@ -189,7 +190,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
               <Icon name="download" size={16} className="text-white" />
               Download PDF
             </button>
-            <Link to={`/v3/${slug}`}
+            <Link to={guidebookPath(slug)}
               className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
               style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
               <Icon name="arrow_back" size={16} />
@@ -209,7 +210,7 @@ function ChoiceScreen({ property, slug, nightMode, onChoose }) {
     <NightModeCtx.Provider value={nightMode}>
       <div className="min-h-screen" style={{ background: t.BG }}>
         <div className="max-w-xl mx-auto px-4 py-10">
-          <Link to={`/v3/${slug}`}
+          <Link to={guidebookPath(slug)}
             className="inline-flex items-center gap-1.5 text-[12px] font-semibold mb-8 hover:opacity-75 transition-opacity"
             style={{ color: t.PRIMARY }}>
             <Icon name="arrow_back" size={14} /> Back to Guidebook
@@ -454,7 +455,7 @@ export default function V3CheckInPage() {
             <p className="text-[13px] mb-6" style={{ color: t.MUTED }}>
               Online check-in is not enabled for this property. Please contact your host with any questions.
             </p>
-            <Link to={`/v3/${slug}`}
+            <Link to={guidebookPath(slug)}
               className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
               style={{ color: t.PRIMARY }}>
               <Icon name="arrow_back" size={14} /> Back to Guidebook
