@@ -28,3 +28,6 @@ serviceAccountKey.json
 *.njsproj
 *.sln
 *.sw?
+functions/node_modules
+.firebase
+firebase-debug.log
