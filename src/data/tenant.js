@@ -69,8 +69,19 @@ export function tenantOrigin(tenantId) {
 //   'legacy' — GitHub Pages, localhost, anything else → current route tree
 export function getHostMode() {
   if (typeof window === 'undefined') return 'legacy'
-  if (isTenantHost()) return 'tenant'
   const host = window.location.hostname || ''
+  // Local dev/preview override: ?host=apex|tenant|legacy (persists for the
+  // session so it survives client-side navigation). Only on localhost — real
+  // hosts always resolve from the actual hostname below.
+  if (host === 'localhost' || host === '127.0.0.1') {
+    try {
+      const q = new URLSearchParams(window.location.search).get('host')
+      if (q) sessionStorage.setItem('talo_host_override', q)
+      const o = sessionStorage.getItem('talo_host_override')
+      if (o === 'apex' || o === 'tenant' || o === 'legacy') return o
+    } catch { /* ignore */ }
+  }
+  if (isTenantHost()) return 'tenant'
   if (host === PLATFORM_DOMAIN || host === 'www.' + PLATFORM_DOMAIN) return 'apex'
   return 'legacy'
 }

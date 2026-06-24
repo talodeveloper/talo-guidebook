@@ -4,6 +4,11 @@ import { adminV2Store } from './data/adminV2Store'
 import { adminV3Store } from './data/adminV3Store'
 import { isSuperAdminAuthenticated } from './data/superAdminAuth'
 import { getHostMode } from './data/tenant'
+
+// Platform (apex talo.llc) — marketing + signup/signin
+import Landing from './platform/Landing'
+import Signup from './platform/Signup'
+import WorkspaceLogin from './platform/WorkspaceLogin'
 import './data/firebaseSync' // initialises Firestore real-time listeners for V2
 
 // Super-admin panel
@@ -133,11 +138,24 @@ function TenantRoutes() {
   )
 }
 
+// Routes served on the apex (talo.llc / www.talo.llc): marketing landing,
+// signup (calls provisionTenant), and a workspace-login router.
+function ApexRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/login" element={<WorkspaceLogin />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
 export default function App() {
   const hostMode = getHostMode()
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
-      {hostMode === 'tenant' ? <TenantRoutes /> : (
+      {hostMode === 'apex' ? <ApexRoutes /> : hostMode === 'tenant' ? <TenantRoutes /> : (
       <Routes>
         <Route path="/" element={<Navigate to="/admin" replace />} />
 
