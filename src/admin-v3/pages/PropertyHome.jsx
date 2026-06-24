@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { adminV3Store, BASE_PROPERTY_SLUGS } from '../../data/adminV3Store'
+import { getHostMode, guidebookPath } from '../../data/tenant'
 import Icon from '../../components/Icon'
+
+// Full href to a guest guidebook, correct for the current host:
+//   tenant subdomain -> /{slug} ; legacy/gh-pages -> /talo-guidebook/v3/{slug}
+const guidebookHref = (slug) =>
+  `${import.meta.env.BASE_URL.replace(/\/$/, '')}${guidebookPath(slug)}`
 
 const COOL_OFF_DAYS = 30
 
@@ -269,13 +275,14 @@ export default function PropertyHomeV3() {
 
       {/* Preview + V3 guidebook links */}
       <div className="mt-8 pt-6 border-t border-slate-100 flex gap-4">
-        <a href={`${import.meta.env.BASE_URL}v3/${slug}`} target="_blank" rel="noopener noreferrer"
+        <a href={guidebookHref(slug)} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-orange-600 transition-colors">
           <Icon name="open_in_new" size={13} />
-          Preview V3 guidebook
+          Preview guidebook
         </a>
-        {/* V2 only exists for the original properties — new properties are V3-only */}
-        {isBaseProperty && (
+        {/* V2 only exists for the original properties on the legacy host — not on
+            tenant subdomains, where everything is V3. */}
+        {isBaseProperty && getHostMode() !== 'tenant' && (
           <a href={`${import.meta.env.BASE_URL}v2/${slug}`} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
             <Icon name="open_in_new" size={13} />
