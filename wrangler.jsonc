@@ -6,6 +6,7 @@
     "not_found_handling": "single-page-application"
   },
   "routes": [
+    { "pattern": "talo.llc/*", "zone_name": "talo.llc" },
     { "pattern": "*.talo.llc/*", "zone_name": "talo.llc" }
   ]
 }
