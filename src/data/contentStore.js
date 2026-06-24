@@ -2125,7 +2125,7 @@ function _migrateHawkBedroomImages(blocks) {
   })
 }
 
-// Priority 1: admin v2 published data (highest authority)
+// Priority 1: admin v2 published data (highest authority — admin's own browser)
 const _adminV2Raw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_admin_v2_live') : null
 if (_adminV2Raw) {
   try {
@@ -2137,10 +2137,27 @@ if (_adminV2Raw) {
     }
   } catch {}
 } else {
-  // Priority 2: legacy admin v1 key
-  const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-  if (_savedRaw) {
-    try { _blocks = _migrateHawkBedroomImages(JSON.parse(_savedRaw)) } catch {}
+  // Priority 2: guest cache populated by firebaseSync from Firestore on prior
+  // visits. This is the REAL published content, so returning guests render the
+  // correct images on first paint instead of flashing the built-in defaults
+  // before the live snapshot arrives.
+  let _usedGuestCache = false
+  const _guestRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_v3_guest_cache') : null
+  if (_guestRaw) {
+    try {
+      const _guest = JSON.parse(_guestRaw)
+      if (Array.isArray(_guest?.blocks) && _guest.blocks.length > 0) {
+        _blocks = _migrateHawkBedroomImages(_guest.blocks)
+        _usedGuestCache = true
+      }
+    } catch {}
+  }
+  // Priority 3: legacy admin v1 / persisted defaults
+  if (!_usedGuestCache) {
+    const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+    if (_savedRaw) {
+      try { _blocks = _migrateHawkBedroomImages(JSON.parse(_savedRaw)) } catch {}
+    }
   }
 }
 // Always apply migration to in-memory defaults too, so a fresh install is correct.
