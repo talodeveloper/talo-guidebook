@@ -91,10 +91,14 @@ function ThemePicker({ currentTheme, slug, onChange }) {
   const [open, setOpen] = useState(false)
 
   const selected = THEMES[preview] || THEMES.modern
+  const isPendingChange = preview !== (currentTheme || 'modern')
 
-  const apply = (id) => {
-    setPreview(id)
-    onChange(id)
+  // Clicking a theme only updates the iframe preview — does NOT save anything.
+  // The explicit "Apply Theme" button is the only thing that writes to the draft.
+  const selectForPreview = (id) => setPreview(id)
+
+  const applyTheme = () => {
+    onChange(preview)
     setOpen(false)
   }
 
@@ -159,7 +163,7 @@ function ThemePicker({ currentTheme, slug, onChange }) {
                     return (
                       <button
                         key={t.id}
-                        onClick={() => apply(t.id)}
+                        onClick={() => selectForPreview(t.id)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 8,
                           padding: '8px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
@@ -186,6 +190,29 @@ function ThemePicker({ currentTheme, slug, onChange }) {
               </div>
             )
           })}
+          {isPendingChange && (
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={applyTheme}
+                style={{
+                  padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #C84B31, #EA580C)',
+                  color: '#fff', fontWeight: 700, fontSize: 13,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                <Icon name="check" size={14} className="text-white" />
+                Apply Theme — {selected.name}
+              </button>
+              <button
+                onClick={() => setPreview(currentTheme || 'modern')}
+                style={{
+                  padding: '9px 14px', borderRadius: 10, border: '1px solid #E5E3E0',
+                  background: '#fff', cursor: 'pointer', fontSize: 12, color: '#6A6A6A',
+                }}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
