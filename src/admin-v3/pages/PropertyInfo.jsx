@@ -131,18 +131,43 @@ function ThemePicker({ currentTheme, slug, onChange }) {
             This is a <strong>mobile preview</strong>. After applying, visit your live guidebook to see the full desktop experience.
           </p>
 
-          <button
-            onClick={() => setOpen(!open)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg, #C84B31, #EA580C)',
-              color: '#fff', fontWeight: 700, fontSize: 13,
-            }}>
-            <Icon name="palette" size={14} className="text-white" />
-            Change Theme
-            <Icon name={open ? 'expand_less' : 'expand_more'} size={14} className="text-white" />
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => setOpen(!open)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #C84B31, #EA580C)',
+                color: '#fff', fontWeight: 700, fontSize: 13,
+              }}>
+              <Icon name="palette" size={14} className="text-white" />
+              Change Theme
+              <Icon name={open ? 'expand_less' : 'expand_more'} size={14} className="text-white" />
+            </button>
+
+            {isPendingChange && (
+              <>
+                <button
+                  onClick={applyTheme}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: '#16A34A', color: '#fff', fontWeight: 700, fontSize: 13,
+                  }}>
+                  <Icon name="check" size={14} className="text-white" />
+                  Apply — {selected.name}
+                </button>
+                <button
+                  onClick={() => { setPreview(currentTheme || 'modern'); setOpen(false) }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 10, fontSize: 12, cursor: 'pointer',
+                    border: '1px solid #E5E3E0', background: '#fff', color: '#6A6A6A', fontWeight: 600,
+                  }}>
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -190,29 +215,6 @@ function ThemePicker({ currentTheme, slug, onChange }) {
               </div>
             )
           })}
-          {isPendingChange && (
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={applyTheme}
-                style={{
-                  padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #C84B31, #EA580C)',
-                  color: '#fff', fontWeight: 700, fontSize: 13,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                <Icon name="check" size={14} className="text-white" />
-                Apply Theme — {selected.name}
-              </button>
-              <button
-                onClick={() => setPreview(currentTheme || 'modern')}
-                style={{
-                  padding: '9px 14px', borderRadius: 10, border: '1px solid #E5E3E0',
-                  background: '#fff', cursor: 'pointer', fontSize: 12, color: '#6A6A6A',
-                }}>
-                Cancel
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
