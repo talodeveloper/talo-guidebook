@@ -33,10 +33,20 @@ export function RichTextEditor({ value, onChange }) {
 
   return (
     <div className="rounded-xl border border-slate-200 overflow-hidden">
-      <div className="flex items-center gap-0.5 px-2 py-1 bg-slate-50 border-b border-slate-200">
+      <div className="flex items-center flex-wrap gap-0.5 px-2 py-1.5 bg-slate-50 border-b border-slate-200">
         <TB onClick={() => exec('bold')} title="Bold"><strong>B</strong></TB>
         <TB onClick={() => exec('italic')} title="Italic"><em>I</em></TB>
         <TB onClick={() => exec('underline')} title="Underline"><span className="underline">U</span></TB>
+        <div className="w-px h-3.5 bg-slate-300 mx-1 flex-shrink-0" />
+        <TB onClick={() => exec('formatBlock', 'h2')} title="Heading">
+          <span className="text-[11px] font-bold text-slate-600">H2</span>
+        </TB>
+        <TB onClick={() => exec('formatBlock', 'h3')} title="Sub-heading">
+          <span className="text-[11px] font-semibold text-slate-500">H3</span>
+        </TB>
+        <TB onClick={() => exec('formatBlock', 'p')} title="Normal paragraph">
+          <span className="text-[10px] text-slate-400 font-medium">¶</span>
+        </TB>
         <div className="w-px h-3.5 bg-slate-300 mx-1 flex-shrink-0" />
         <TB onClick={() => exec('fontSize', '2')} title="Small text">
           <span className="text-[10px] font-semibold text-slate-500">A</span>
@@ -45,8 +55,12 @@ export function RichTextEditor({ value, onChange }) {
           <span className="text-[16px] font-semibold">A</span>
         </TB>
         <div className="w-px h-3.5 bg-slate-300 mx-1 flex-shrink-0" />
+        <TB onClick={() => exec('insertUnorderedList')} title="Bullet list">
+          <span className="text-[11px] text-slate-500">• list</span>
+        </TB>
+        <div className="w-px h-3.5 bg-slate-300 mx-1 flex-shrink-0" />
         <TB onClick={() => exec('removeFormat')} title="Clear formatting">
-          <span className="text-[10px] text-slate-400 font-medium">✕ clear</span>
+          <span className="text-[10px] text-slate-400 font-medium">✕</span>
         </TB>
       </div>
       <div
@@ -58,6 +72,9 @@ export function RichTextEditor({ value, onChange }) {
           [&_strong]:font-semibold [&_b]:font-semibold
           [&_em]:italic [&_i]:italic
           [&_u]:underline
+          [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-slate-900 [&_h2]:mt-3 [&_h2]:mb-1.5
+          [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-700 [&_h3]:mt-2 [&_h3]:mb-1
+          [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-1.5
           [&_p]:mb-1.5 [&_p:last-child]:mb-0"
       />
     </div>

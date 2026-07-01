@@ -4,7 +4,7 @@ import { contentStore } from '../data/contentStore'
 import { db } from '../firebase'
 import { collection, addDoc } from 'firebase/firestore'
 import Icon from '../components/Icon'
-import { getHostMode, guidebookPath } from '../data/tenant'
+import { getHostMode, guidebookPath, getTenantId } from '../data/tenant'
 
 function ContentBlock({ block }) {
   return (
@@ -90,6 +90,7 @@ export default function Checkout() {
     })
     try {
       await addDoc(collection(db, 'v2_checkouts'), {
+        tenantId:              getTenantId(),
         primaryGuestName:      checkoutForm.primaryName.trim(),
         guestName:             checkoutForm.guestName.trim(),
         propertySlug:          slug,

@@ -4,8 +4,7 @@ import { adminV3Store, BASE_PROPERTY_SLUGS } from '../../data/adminV3Store'
 import { getHostMode, guidebookPath } from '../../data/tenant'
 import Icon from '../../components/Icon'
 
-// Full href to a guest guidebook, correct for the current host:
-//   tenant subdomain -> /{slug} ; legacy/gh-pages -> /talo-guidebook/v3/{slug}
+// Full href to the guest guidebook — tenant subdomain → /{slug}
 const guidebookHref = (slug) =>
   `${import.meta.env.BASE_URL.replace(/\/$/, '')}${guidebookPath(slug)}`
 
@@ -280,15 +279,6 @@ export default function PropertyHomeV3() {
           <Icon name="open_in_new" size={13} />
           Preview guidebook
         </a>
-        {/* V2 only exists for the original properties on the legacy host — not on
-            tenant subdomains, where everything is V3. */}
-        {isBaseProperty && getHostMode() !== 'tenant' && (
-          <a href={`${import.meta.env.BASE_URL}v2/${slug}`} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
-            <Icon name="open_in_new" size={13} />
-            V2 guidebook
-          </a>
-        )}
       </div>
 
       {/* Delete — only offered while deactivated, after the cool-off */}

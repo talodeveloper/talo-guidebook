@@ -1,8 +1,196 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { adminV3Store } from '../../data/adminV3Store'
 import Icon from '../../components/Icon'
 import ImagePicker from '../components/ImagePicker'
+import { THEMES, THEME_CATEGORIES } from '../../data/themes'
+import { guidebookPath } from '../../data/tenant'
+
+// ─── Live iframe phone preview ────────────────────────────────────────────────
+// Renders the actual guidebook at 375px width inside a phone shell frame.
+// Uses ?preview_theme= URL param so it doesn't affect the saved theme.
+function ThemePhonePreview({ themeId, slug }) {
+  const iframeRef = useRef(null)
+  const src = `${guidebookPath(slug)}?preview_theme=${themeId}`
+
+  // Reload iframe when theme changes (src change alone doesn't always trigger)
+  useEffect(() => {
+    if (iframeRef.current) {
+      iframeRef.current.src = src
+    }
+  }, [src])
+
+  // Phone outer size
+  const PHONE_W = 220
+  const PHONE_H = 460
+  const BORDER  = 3
+  const STATUS  = 14
+  // Inner content area
+  const INNER_W = PHONE_W - BORDER * 2
+  const INNER_H = PHONE_H - BORDER * 2 - STATUS
+  // Scale the 375px guidebook to fit inner width
+  const SCALE = INNER_W / 375
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      {/* Phone shell */}
+      <div style={{
+        width: PHONE_W, height: PHONE_H, borderRadius: 28, overflow: 'hidden',
+        border: `${BORDER}px solid #1C1C1E`,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.08) inset',
+        flexShrink: 0, background: '#000', position: 'relative',
+      }}>
+        {/* Status bar */}
+        <div style={{
+          height: STATUS, background: '#000',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px',
+          position: 'relative', zIndex: 2,
+        }}>
+          <span style={{ fontSize: 7, color: '#fff', fontWeight: 700 }}>9:41</span>
+          <div style={{ width: 60, height: 8, background: '#111', borderRadius: 6, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }} />
+          <span style={{ fontSize: 7, color: '#fff' }}>●●●</span>
+        </div>
+
+        {/* Scaled iframe — fully interactive: scroll, tap night toggle, etc. */}
+        <div style={{ width: INNER_W, height: INNER_H, overflow: 'hidden', position: 'relative' }}>
+          <iframe
+            ref={iframeRef}
+            src={src}
+            title="guidebook-preview"
+            style={{
+              width: 375,
+              height: Math.ceil(INNER_H / SCALE),
+              border: 'none',
+              transform: `scale(${SCALE})`,
+              transformOrigin: 'top left',
+              display: 'block',
+            }}
+          />
+        </div>
+
+        {/* Bottom home indicator */}
+        <div style={{
+          position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
+          width: 80, height: 4, background: '#444', borderRadius: 2, zIndex: 2,
+        }} />
+      </div>
+
+      {/* Glossy badge */}
+      {THEMES[themeId]?.glossy && (
+        <div style={{ fontSize: 10, fontWeight: 700, background: 'linear-gradient(135deg,#C9A84C,#FFE08A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.05em' }}>
+          ✦ GLOSSY FINISH
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Theme picker ─────────────────────────────────────────────────────────────
+function ThemePicker({ currentTheme, slug, onChange }) {
+  const [preview, setPreview] = useState(currentTheme || 'modern')
+  const [open, setOpen] = useState(false)
+
+  const selected = THEMES[preview] || THEMES.modern
+
+  const apply = (id) => {
+    setPreview(id)
+    onChange(id)
+    setOpen(false)
+  }
+
+  return (
+    <div>
+      {/* Current theme header */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {/* Phone preview */}
+        <div style={{ flexShrink: 0 }}>
+          <ThemePhonePreview themeId={preview} slug={slug} />
+        </div>
+
+        {/* Info panel */}
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+              background: selected.swatchGrad,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }} />
+            <span style={{ fontWeight: 800, fontSize: 15, color: '#1C1C1E' }}>{selected.name}</span>
+            {selected.glossy && (
+              <span style={{ fontSize: 9, fontWeight: 700, background: 'linear-gradient(135deg,#C9A84C,#E8D080)', color: '#4A3000', borderRadius: 4, padding: '2px 5px', letterSpacing: '0.04em' }}>GLOSSY</span>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: '#6A6A6A', marginBottom: 4 }}>{selected.description}</p>
+          <p style={{ fontSize: 11, color: '#9A9A9A', marginBottom: 12 }}>Category: {selected.category}</p>
+
+          <p style={{ fontSize: 11, color: '#78716C', marginBottom: 8, lineHeight: 1.4 }}>
+            This is a <strong>mobile preview</strong>. After applying, visit your live guidebook to see the full desktop experience.
+          </p>
+
+          <button
+            onClick={() => setOpen(!open)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, #C84B31, #EA580C)',
+              color: '#fff', fontWeight: 700, fontSize: 13,
+            }}>
+            <Icon name="palette" size={14} className="text-white" />
+            Change Theme
+            <Icon name={open ? 'expand_less' : 'expand_more'} size={14} className="text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Theme grid */}
+      {open && (
+        <div style={{ marginTop: 16, padding: '16px', background: '#F8F7F5', borderRadius: 14, border: '1px solid #E5E3E0', maxHeight: 340, overflowY: 'auto' }}>
+          {THEME_CATEGORIES.map(cat => {
+            const themes = Object.values(THEMES).filter(t => t.category === cat.key)
+            if (!themes.length) return null
+            return (
+              <div key={cat.key} style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#8A8A8A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                  {cat.label}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {themes.map(t => {
+                    const isActive = preview === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => apply(t.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '8px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                          border: isActive ? '2px solid #C84B31' : '2px solid transparent',
+                          background: isActive ? '#FFF5F2' : '#FFFFFF',
+                          boxShadow: isActive ? '0 0 0 2px rgba(200,75,49,0.15)' : '0 1px 3px rgba(0,0,0,0.08)',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                          background: t.swatchGrad,
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+                        }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#1C1C1E', lineHeight: 1.2 }}>{t.name}</div>
+                          {t.glossy && <div style={{ fontSize: 9, color: '#A07A20', fontWeight: 600, marginTop: 1 }}>✦ Glossy</div>}
+                        </div>
+                        {isActive && <Icon name="check_circle" size={14} style={{ color: '#C84B31', marginLeft: 'auto', flexShrink: 0 }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Field({ label, hint, children }) {
   return (
@@ -66,6 +254,9 @@ export default function PropertyInfoV3() {
   const [info, setInfo] = useState(adminV3Store.getPropertyInfo(slug))
   const [saved, setSaved] = useState(null)
 
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  const [currentTheme, setCurrentTheme] = useState(info.theme || 'modern')
+
   // ── Check-In Welcome ───────────────────────────────────────────────────────
   const DEFAULT_CHECKIN_WELCOME = "Welcome! Please review each house rule below and tap the checkbox next to every rule to confirm you've read and agreed to it. All guests staying at this property are expected to follow these rules. Thank you for helping us keep this space special for everyone."
   const DEFAULT_CHECKIN_OFFER = "🎁 One more thing! Ask every adult (18+) in your group to complete their own check-in using this same link — when everyone signs in, you'll earn a $50 credit toward your next stay with TALO Rentals."
@@ -82,6 +273,7 @@ export default function PropertyInfoV3() {
     setHost({ ownerName: fresh.ownerName || '', ownerPhone: fresh.ownerPhone || '', ownerEmail: fresh.ownerEmail || '' })
     setWelcomeText(fresh.checkInWelcome || DEFAULT_CHECKIN_WELCOME)
     setOfferText(fresh.checkInOfferText || DEFAULT_CHECKIN_OFFER)
+    setCurrentTheme(fresh.theme || 'modern')
     return adminV3Store.subscribe(() => setInfo(adminV3Store.getPropertyInfo(slug)))
   }, [slug]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -113,6 +305,23 @@ export default function PropertyInfoV3() {
       </div>
 
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Property Info</h1>
+
+      {/* Guidebook Theme */}
+      <Card title="Guidebook Theme" icon="palette" saved={saved === 'theme'}>
+        <p className="text-[12px] text-slate-500 mb-4">
+          Choose the visual theme for this property's guest guidebook. The preview below shows a live render of your actual guidebook at mobile size — exactly what guests will see.
+        </p>
+        <ThemePicker
+          currentTheme={currentTheme}
+          slug={slug}
+          onChange={(themeId) => {
+            setCurrentTheme(themeId)
+            adminV3Store.updatePropertyInfo(slug, { theme: themeId })
+            setSaved('theme')
+            setTimeout(() => setSaved(null), 2500)
+          }}
+        />
+      </Card>
 
       {/* Hero banner image */}
       <Card title="Hero Banner Image" icon="image">

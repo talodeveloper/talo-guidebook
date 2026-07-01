@@ -4,19 +4,20 @@ import { FAQ_DATA as defaultFaq } from './faqData'
 import { db } from '../firebase'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { adminSignIn, adminSignOut, verifyAdminPassword } from './auth'
+import { clearSession } from './sessionStore'
 import { fsPaths, getTenantId, DEFAULT_TENANT_ID } from './tenant'
 
 // Push a live snapshot to Firestore so the cross-tab/cross-session listener
 // can't overwrite our changes with stale data. Best-effort — failure here
 // must not block the local publish, since the local data is already saved.
-async function pushToFirestore(live) {
+async function pushToFirestore(live, updatedAt = Date.now()) {
   try {
     // Tenant-scoped write ONLY. The previous global v2_content/blocks + /properties
     // writes leaked one tenant's content into the shared legacy docs (cross-tenant
     // pollution) — removed. firebaseSync reads tenants/{tid}/data/live as primary.
     // JSON round-trip strips `undefined` (Firestore rejects undefined values).
     const clean = JSON.parse(JSON.stringify(live))
-    await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt: Date.now() })
+    await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt })
   } catch (err) {
     console.warn('[adminV3Store] Firestore push failed:', err)
   }
@@ -25,6 +26,8 @@ async function pushToFirestore(live) {
 export const ADMIN_V3_LIVE_KEY = 'talo_admin_v3_live'
 const DRAFT_KEY = 'talo_admin_v3_draft'
 const AUTH_KEY = 'talo_admin_v3_auth'
+const LOADED_AT_KEY    = 'talo_admin_v3_loaded_at'    // persisted remote timestamp we loaded from
+const PUBLISHED_AT_KEY = 'talo_admin_v3_published_at' // cross-tab broadcast after each publish
 
 export const ACTIVITY_CATEGORIES = [
   { key: 'rbc',                  label: "Restaurants, Bars & Cafés",  color: '#9B1C1C', accent: '#DC2626' },
@@ -384,13 +387,57 @@ let _listeners = []
 // _hydrating: true while we load from Firestore.
 let _ready = false
 let _hydrating = false
+// Timestamp of the Firestore content we last loaded. Compared against Firestore's
+// current updatedAt on each publish attempt — if Firestore is newer, another
+// device/tab already published and this tab must reload before publishing.
+let _loadedRemoteAt = null
+// Cross-tab stale flag: set when another tab in the same browser publishes.
+let _staleSession = false
 
 function notify() { _listeners.forEach(fn => fn()) }
+
+// Convert legacy shared blocks to per-property blocks. Three blocks were
+// incorrectly type:'shared' (global) — each property now owns its own copy.
+function migrateSharedToPropertyBlocks(draft) {
+  if (!draft?.blocks) return draft
+  const SHARED_IDS = ['getting-around-shared', 'checkout-instructions', 'checkout-legal']
+  const slugs = (draft.propertyList || []).map(p => p.slug).filter(Boolean)
+  if (!slugs.length) return draft
+
+  let changed = false
+  let blocks = [...draft.blocks]
+
+  for (const sharedId of SHARED_IDS) {
+    const idx = blocks.findIndex(b => b.id === sharedId && b.type === 'shared')
+    if (idx === -1) continue
+
+    const shared = blocks[idx]
+    blocks.splice(idx, 1)
+    changed = true
+
+    for (const slug of slugs) {
+      // Transport: skip properties that already have their own transport block
+      if (shared.sectionKey === 'transport') {
+        const hasOwn = blocks.some(
+          b => b.sectionKey === 'transport' && b.type === 'property' && b.propertySlug === slug
+        )
+        if (hasOwn) continue
+      }
+      // Idempotent: skip if migrated copy already exists
+      if (blocks.some(b => b.id === `${sharedId}-${slug}`)) continue
+
+      blocks.push({ ...shared, id: `${sharedId}-${slug}`, type: 'property', propertySlug: slug })
+    }
+  }
+
+  return changed ? { ...draft, blocks } : draft
+}
 
 // Shared post-load processing for a draft: migrations + one-time backfills.
 function postProcessDraft(draft) {
   draft = migrateFaqStructures(draft)
   draft = migrateHawkBedroomImages(draft, DRAFT_KEY)
+  draft = migrateSharedToPropertyBlocks(draft)
   if (draft && !draft.activityCategories) {
     draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
   }
@@ -410,6 +457,11 @@ async function hydrateFromFirestore() {
   try {
     const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
     const full = snap.exists() ? snap.data()?.data : null
+    const remoteAt = snap.exists() ? (snap.data()?.updatedAt || null) : null
+    if (remoteAt) {
+      _loadedRemoteAt = remoteAt
+      try { localStorage.setItem(LOADED_AT_KEY, String(remoteAt)) } catch {}
+    }
     if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
       // Real published content exists — adopt it as both live and draft.
       _live = migrateHawkBedroomImages(full, ADMIN_V3_LIVE_KEY)
@@ -419,9 +471,12 @@ async function hydrateFromFirestore() {
       _ready = true
     } else {
       // Genuinely new tenant with nothing published yet — start BLANK (never the
-      // TALO seed). Safe to persist because there is no live data to overwrite.
+      // TALO seed). Align _live with the empty draft so hasUnsavedChanges()
+      // returns false until the user actually makes a real change.
       _draft = postProcessDraft(buildEmptyDraft())
+      _live = JSON.parse(JSON.stringify(_draft))
       writeJSON(DRAFT_KEY, _draft)
+      writeJSON(ADMIN_V3_LIVE_KEY, _live)
       _ready = true
     }
   } catch (err) {
@@ -436,6 +491,24 @@ async function hydrateFromFirestore() {
 
 _live = readJSON(ADMIN_V3_LIVE_KEY)
 _draft = readJSON(DRAFT_KEY)
+
+// Restore the remote timestamp we last loaded, so the staleness check works
+// across page reloads without re-fetching Firestore.
+try {
+  const stored = localStorage.getItem(LOADED_AT_KEY)
+  if (stored) _loadedRemoteAt = Number(stored)
+} catch {}
+
+// Cross-tab broadcast: when another tab in this browser publishes, mark this
+// tab as stale so it can't silently overwrite with outdated content.
+try {
+  window.addEventListener('storage', (e) => {
+    if (e.key === PUBLISHED_AT_KEY && e.newValue && e.storageArea === localStorage) {
+      _staleSession = true
+      notify()
+    }
+  })
+} catch {}
 
 // Self-heal contaminated storage: a NON-default tenant must never carry the
 // TALO seed content. This happens to any browser that opened a new tenant's
@@ -507,7 +580,10 @@ export const adminV3Store = {
     return localStorage.getItem('talo_admin_v3_locked') || null // 'deactivated' | 'suspended' | null
   },
 
-  logout() { adminSignOut() },
+  logout() {
+    clearSession().catch(() => {})
+    adminSignOut()
+  },
 
   // True once authoritative data is loaded; false while loading from Firestore
   // on a fresh browser/device. The UI uses these to block publishing defaults.
@@ -1195,8 +1271,16 @@ export const adminV3Store = {
     // revert (e.g. a stale tab) — block it, no matter how the draft got stale.
     try {
       const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
-      const remote = snap.exists() ? snap.data()?.data : null
-      if (remote && uploadedImageCount(remote) > 0 && uploadedImageCount(_draft) === 0) {
+      const remoteData = snap.exists() ? snap.data()?.data : null
+      const remoteAt   = snap.exists() ? (snap.data()?.updatedAt || null) : null
+      // Block if Firestore has been updated since this tab last loaded — another
+      // device or tab already published. Reload first to get the latest content.
+      if (remoteAt && _loadedRemoteAt && remoteAt > _loadedRemoteAt) {
+        console.warn('[adminV3Store] publish BLOCKED — content updated remotely since this tab loaded')
+        return 'blocked-stale'
+      }
+      // Block if this draft would wipe out uploaded images that live in Firestore.
+      if (remoteData && uploadedImageCount(remoteData) > 0 && uploadedImageCount(_draft) === 0) {
         console.warn('[adminV3Store] publish BLOCKED — would revert live uploaded images to defaults')
         return 'blocked-defaults'
       }
@@ -1212,18 +1296,77 @@ export const adminV3Store = {
       const v2Live = readJSON('talo_admin_v2_live') || {}
       writeJSON('talo_admin_v2_live', { ...v2Live, blocks: _live.blocks })
     } catch (e) { /* ignore */ }
+    // Record when we published so the staleness check works on next attempt.
+    const publishedAt = Date.now()
+    _loadedRemoteAt = publishedAt
+    try {
+      localStorage.setItem(LOADED_AT_KEY, String(publishedAt))
+      // Broadcast to other tabs in this browser — they'll mark themselves stale.
+      localStorage.setItem(PUBLISHED_AT_KEY, String(publishedAt))
+    } catch {}
     // Push to Firestore so the real-time listener doesn't overwrite our
     // changes with stale server data on the next page load. Fire and forget.
-    pushToFirestore(_live)
+    pushToFirestore(_live, publishedAt)
     contentStore.reloadFromLive(_live.blocks)
     notify()
     return true
   },
 
   discardDraft() {
-    _draft = _live ? JSON.parse(JSON.stringify(_live)) : buildEmptyDraft()
-    writeJSON(DRAFT_KEY, _draft)
+    if (_live) {
+      _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
+      writeJSON(DRAFT_KEY, _draft)
+    } else {
+      // No published data yet — reset draft to empty and align _live so
+      // hasUnsavedChanges() returns false (banner disappears after discard).
+      _draft = buildEmptyDraft()
+      _live = JSON.parse(JSON.stringify(_draft))
+      writeJSON(DRAFT_KEY, _draft)
+      writeJSON(ADMIN_V3_LIVE_KEY, _live)
+    }
     notify()
+  },
+
+  isStaleSession: () => _staleSession,
+
+  /**
+   * Called when the stale-session banner's "Reload" button is clicked.
+   * Fetches the current Firestore timestamp and aligns _loadedRemoteAt with it
+   * so the next publish attempt isn't blocked. No page reload required.
+   */
+  async syncRemoteAt() {
+    try {
+      const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
+      const remoteAt = snap.exists() ? (snap.data()?.updatedAt || null) : null
+      if (remoteAt) {
+        _loadedRemoteAt = remoteAt
+        try { localStorage.setItem(LOADED_AT_KEY, String(remoteAt)) } catch {}
+      }
+    } catch {}
+    _staleSession = false
+    notify()
+  },
+
+  /**
+   * Called after a force-logout login: wipes localStorage content state and
+   * re-hydrates from Firestore so _loadedRemoteAt is correct and the publish
+   * check doesn't false-alarm.
+   */
+  async forceReset() {
+    _draft = null
+    _live = null
+    _loadedRemoteAt = null
+    _staleSession = false
+    _ready = false
+    _hydrating = true
+    try {
+      localStorage.removeItem(DRAFT_KEY)
+      localStorage.removeItem(ADMIN_V3_LIVE_KEY)
+      localStorage.removeItem(LOADED_AT_KEY)
+      localStorage.removeItem(PUBLISHED_AT_KEY)
+    } catch {}
+    notify()
+    await hydrateFromFirestore()
   },
 
   // ── Read-only helpers (used by guidebook side, not just admin) ────────────

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, getDoc, updateDoc, collection, getCountFromServer, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, deleteDoc, collection, getCountFromServer, serverTimestamp } from 'firebase/firestore'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { db, auth } from '../../firebase'
 import Icon from '../../components/Icon'
+import { forceLogoutTenant } from '../../data/sessionStore'
 
 const LIVE_BASE = 'https://talodeveloper.github.io/talo-guidebook'
 
@@ -296,6 +297,100 @@ function ContactEditor({ tenant, onSaved }) {
   )
 }
 
+// ─── Delete modal ─────────────────────────────────────────────────────────
+function DeleteModal({ tenantSlug, onClose, onDeleted }) {
+  const [typedSlug, setTypedSlug]   = useState('')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [error, setError]           = useState('')
+  const [busy, setBusy]             = useState(false)
+
+  const slugMatch = typedSlug.trim() === tenantSlug
+
+  async function handleDelete() {
+    if (!slugMatch) { setError('Slug does not match.'); return }
+    if (!email.trim() || !password) { setError('Please enter your admin email and password to confirm.'); return }
+    setError('')
+    setBusy(true)
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password)
+      await onDeleted()
+      onClose()
+    } catch (e) {
+      if (['auth/invalid-credential','auth/wrong-password','auth/user-not-found'].includes(e.code)) {
+        setError('Incorrect email or password. Please try again.')
+      } else {
+        setError(e.message || 'Something went wrong.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: '#1E293B', border: '1px solid #991b1b' }}>
+        <div className="flex items-start gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-900/50">
+            <Icon name="delete_forever" size={20} className="text-red-400" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-base font-bold text-red-400">Delete tenant</h2>
+            <p className="text-sm text-slate-300 mt-1 leading-relaxed">
+              This is <span className="font-semibold text-white">permanent and cannot be undone.</span> All guidebook content, settings, and configuration will be erased immediately.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl px-4 py-3 mb-4 flex items-start gap-2.5" style={{ background: '#0F172A', border: '1px solid #334155' }}>
+          <Icon name="warning" size={15} className="text-red-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Guest check-in/check-out records and uploaded images in Firebase Storage are <span className="font-semibold text-white">not</span> automatically removed. If full cleanup is needed, delete them manually from the Firebase Console.
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+            Type <span className="text-red-300 font-mono">{tenantSlug}</span> to confirm deletion
+          </label>
+          <input
+            type="text"
+            value={typedSlug}
+            onChange={e => setTypedSlug(e.target.value)}
+            placeholder={tenantSlug}
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500"
+            style={{ background: '#0F172A', border: `1px solid ${slugMatch ? '#dc2626' : '#334155'}` }}
+          />
+        </div>
+
+        <div className="space-y-3 mb-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirm your admin credentials</p>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your admin email"
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+            style={{ background: '#0F172A', border: '1px solid #334155' }} />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password"
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+            style={{ background: '#0F172A', border: '1px solid #334155' }} />
+        </div>
+
+        {error && <p className="mb-4 text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} disabled={busy}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+            style={{ border: '1px solid #334155' }}>
+            Cancel
+          </button>
+          <button onClick={handleDelete} disabled={busy || !slugMatch || !email.trim() || !password}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-40 bg-red-700 hover:bg-red-600">
+            {busy ? 'Deleting…' : 'Delete tenant'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 export default function TenantDetail() {
   const { tenantId } = useParams()
@@ -306,7 +401,10 @@ export default function TenantDetail() {
   const [counts, setCounts]     = useState({ checkins: null, checkouts: null })
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
-  const [modal, setModal]       = useState(null)
+  const [modal, setModal]           = useState(null)
+  const [showDelete, setShowDelete] = useState(false)
+  const [forceLogoutBusy, setForceLogoutBusy]   = useState(false)
+  const [forceLogoutDone, setForceLogoutDone]   = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -343,6 +441,15 @@ export default function TenantDetail() {
     setTenant(t => ({ ...t, ...updates }))
   }
 
+  async function deleteTenant() {
+    const slug = tenant.slug || tenant.id
+    await Promise.all([
+      deleteDoc(doc(db, 'tenants', tenantId)),
+      deleteDoc(doc(db, 'slugs', slug)),
+    ])
+    navigate('/super-admin/dashboard')
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500 text-sm">Loading…</div>
   if (error)   return <div className="p-8 text-center text-red-400 text-sm">{error}</div>
 
@@ -375,6 +482,13 @@ export default function TenantDetail() {
           tenantName={tenant.name}
           onClose={() => setModal(null)}
           onConfirmed={() => applyAction(modal)}
+        />
+      )}
+      {showDelete && (
+        <DeleteModal
+          tenantSlug={tenant.slug || tenant.id}
+          onClose={() => setShowDelete(false)}
+          onDeleted={deleteTenant}
         />
       )}
 
@@ -653,6 +767,56 @@ export default function TenantDetail() {
                   </div>
                 )
               )}
+
+              {/* ── Force logout all sessions ── */}
+              <div className="flex items-start justify-between gap-4 pt-4" style={{ borderTop: '1px solid #7f1d1d' }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">Force sign out all sessions</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Immediately signs out every active admin session for this tenant.
+                    Any unpublished changes on their end will be lost — notify them first.
+                  </p>
+                  {forceLogoutDone && (
+                    <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                      <Icon name="check_circle" size={12} /> Done — all sessions have been signed out.
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Sign out all active sessions for "${tenant.name}"?\n\nAny unpublished changes they have will be lost. Make sure you've notified them first.`)) return
+                    setForceLogoutBusy(true)
+                    setForceLogoutDone(false)
+                    try {
+                      await forceLogoutTenant(tenantId)
+                      setForceLogoutDone(true)
+                      setTimeout(() => setForceLogoutDone(false), 5000)
+                    } catch (e) {
+                      window.alert('Force logout failed: ' + e.message)
+                    } finally {
+                      setForceLogoutBusy(false)
+                    }
+                  }}
+                  disabled={forceLogoutBusy}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-orange-400 border border-orange-700 hover:bg-orange-900/30 transition-colors disabled:opacity-50">
+                  <Icon name="logout" size={14} />
+                  {forceLogoutBusy ? 'Signing out…' : 'Force Sign Out'}
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-4 pt-4" style={{ borderTop: '1px solid #7f1d1d' }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">Delete tenant</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Permanently erases all Firestore data for this tenant. This cannot be undone.
+                    Guest records and Storage files must be removed separately from the Firebase Console.
+                  </p>
+                </div>
+                <button onClick={() => setShowDelete(true)}
+                  className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-red-400 border border-red-700 bg-red-900/20 hover:bg-red-900/40 transition-colors">
+                  Delete
+                </button>
+              </div>
 
             </div>
           </div>

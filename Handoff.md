@@ -1,6 +1,7 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: P2 started — domain talo.llc, subdomain-per-tenant, resolver wired (Jun 2026)**
+> **Last updated: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions**
+> Previous: Jun 25 2026 — Landing page redesign, password reset, super-admin routing fix, tenant data isolation for check-ins, new-account banner fix
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
 > Session 3 — Jackson Street photo mapping
@@ -15,6 +16,11 @@
 > Session 13.1 — Firebase Auth for all 3 admin logins, Firestore + Storage rules locked.
 > Phase 1 (productization) — Multi-tenancy foundation: tenant data seam, TALO tenant seeded in Firestore, dual-write on publish, reads flipped to tenants/talo/data/live with legacy fallback, tenant-scoped Storage uploads, Firestore rules updated. Two bug fixes (spurious unsaved changes + spurious logout). All deployed and live.
 > Phase 5 — Super-admin platform panel at /super-admin: login (checks superadmin claim), tenant dashboard, tenant detail, create tenant, scripts for bootstrapping claims.
+> Phase 2 — Cloudflare Workers deployed, talo.llc apex + *.talo.llc wildcard live. host-based routing in App.jsx. Landing, Signup, WorkspaceLogin pages built.
+> Phase 3 — provisionTenant Cloud Function deployed (us-central1). Self-serve signup end-to-end working.
+> Phase 4 (partial) — Signup page live. Stripe still placeholder. Tenant isolation + data-loss bugs fully fixed.
+> Session 14 (Jun 25 2026) — Landing page redesign, password reset flows, super-admin apex routing fix, check-in/checkout tenant isolation, new-account "Initial setup" banner fix, login screen copy update
+> Session 15 (Jul 1 2026) — Per-property theme system + night backgrounds. See section below.
 > Everything below is confirmed and saved to disk.
 
 ---
@@ -254,21 +260,267 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 - **Guest guidebook flash fix (Jun 24 2026):** `contentStore` now initialises blocks from the `talo_v3_guest_cache` (real published content written by `firebaseSync`) before falling back to legacy/built-in defaults, so returning guests render the correct images on first paint instead of flashing defaults until the Firestore snapshot arrives. First-ever visit still shows defaults once (no cache yet) then updates — unavoidable without SSR.
 - **Storage note from the incident:** uploaded images are never deleted by publish. Pre-P1 uploads live under `properties/{slug}/{blockId}/...`; post-P1 under `tenants/talo/properties/{slug}/{blockId}/...`. Both are public-read. To recover a lost image reference, the file can be re-downloaded from its Storage URL and re-uploaded via the admin.
 
+### ✅ Completed in this productization push (Jun 24 2026)
+
+**P2 — Cloudflare Workers hosting (LIVE)**
+- `wrangler.jsonc` deploys to two routes: `talo.llc/*` (apex marketing) + `*.talo.llc/*` (tenant subdomains). SPA fallback so all React routes work.
+- `vite.config.js`: `base: process.env.DEPLOY_TARGET === 'cloudflare' ? '/' : (command === 'build' ? '/talo-guidebook/' : '/')`. Deploy: `npm run deploy:cf` (= `DEPLOY_TARGET=cloudflare vite build && wrangler deploy`).
+- DNS: talo.llc nameservers moved to Cloudflare (clint + melany). Worker intercepts all traffic, including old GoDaddy parking A records.
+- `src/data/tenant.js`: `getHostMode()` → `'apex' | 'tenant' | 'legacy'`. `getTenantId()` reads subdomain on `*.talo.llc`. `guidebookPath(slug, sub)`, `isTenantHost()`, `tenantOrigin(tenantId)`, `PLATFORM_DOMAIN = 'talo.llc'`, `RESERVED_SUBDOMAINS`.
+- `src/App.jsx`: `ApexRoutes` (`/` → Landing, `/signup` → Signup, `/login` → WorkspaceLogin, `*` → redirect `/`). `TenantRoutes` (admin-v3 tree + `/:slug` guidebook at root).
+- `src/platform/Landing.jsx`: marketing page, hero, 3 feature cards, brand gradient.
+- `src/platform/Signup.jsx`: company name → auto-slug, slug field with `.talo.llc` suffix, email/password, plan picker (Free in beta). Submit: `createUserWithEmailAndPassword` → `httpsCallable(functions, 'provisionTenant')` → success screen with link to `{slug}.talo.llc/admin-v3`.
+- `src/platform/WorkspaceLogin.jsx`: slug input → redirects owner to `{slug}.talo.llc/admin-v3` (Firebase sessions don't span subdomains; actual login happens on the tenant subdomain).
+- Dev tip: `getHostMode()` honors `?host=apex|tenant|legacy` on localhost (`sessionStorage['talo_host_override']`) for local testing.
+
+**P3 — provisionTenant Cloud Function (LIVE)**
+- `functions/index.js`: HTTPS callable. Validates slug, runs Firestore transaction (atomically claims `slugs/{slug}` + creates `tenants/{slug}`), sets custom claims `{tenantId, role:'owner'}`. Project `talo-guidebook`, us-central1.
+- Deploy: `npx firebase deploy --only functions`. `.firebaserc` + `firebase.json` in repo.
+- NOTE: runtime is Node 20 (deprecated 2026-10-30) — bump to Node 22 before that date.
+
+**Tenant data isolation + data-loss fixes (all deployed)**
+1. `buildEmptyDraft()` — new tenants start blank, not with TALO seed
+2. `pushToFirestore()` — now only writes `tenants/{tid}/data/live` (removed cross-tenant global `v2_content` writes)
+3. `publish()` is async with a hard guard — blocks if Firestore has uploaded images but draft has none (returns `'blocked-defaults'` / `'blocked-error'`)
+4. Self-heal — on load, non-default tenant with TALO's `BASE_PROPERTY_SLUGS` in draft → discards it + re-hydrates blank from Firestore
+5. `hydrateFromFirestore()` — fresh browser/device loads real content before enabling publish; `_ready` flag; Layout shows loading/error screens during hydration
+6. `contentStore` priority 2 reads `talo_v3_guest_cache` (returning guests see real images on first paint)
+7. "Preview guidebook" link in PropertyHome uses `guidebookHref(slug)` via `guidebookPath()` (was hardcoded `/v3/{slug}` → 404 on subdomains)
+
+**Deactivation enforcement (admin-v3)**
+- `login()` sets `talo_admin_v3_locked` in localStorage for deactivated/suspended tenants; caller navigates to dashboard.
+- `AdminV3Layout` renders `AccountLockedWall` (Contact Support + Sign Out, plan selection placeholder) when `isLocked()`.
+- Deactivated tenants: CAN log in, CAN'T access any admin routes. Data is never auto-deleted.
+
+---
+
+### ✅ Session 14 (Jun 25 2026) — DEPLOYED & LIVE
+
+**Password reset flows**
+- `src/admin-v3/Login.jsx` — inline forgot-password flow using `sendPasswordResetEmail(auth, email)`. Toggle between login and reset forms; success screen shows "Check your inbox at {email}". No Firebase config changes needed.
+- `src/super-admin/Login.jsx` — same pattern, dark indigo theme. Pre-fills email if already typed in login form.
+
+**Super-admin routing fix on apex domain (`talo.llc`)**
+- Bug: `/super-admin/login` and all super-admin sub-routes redirected to `/` on talo.llc (catch-all route caught them).
+- Fix: added full super-admin route tree to `ApexRoutes` in `src/App.jsx` — pathless layout route wrapping dashboard/tenant/create-tenant, mirroring the legacy tree exactly to match all `navigate()` calls in Dashboard/Layout/TenantDetail.
+- A second routing bug (wrong nesting made tenant detail paths `/super-admin/dashboard/tenant/:id`) was also fixed.
+
+**Landing page full redesign** (`src/platform/Landing.jsx`)
+- Dark charcoal theme (`#1C1C1E` — same tone as Claude Code / macOS dark UI), not pure black
+- Left panel: pill badge → large gradient headline → description → "Get started free →" CTA → compact 3-feature vertical list (Live in 3 min, No app needed, Your own address)
+- Right panel: tilted CSS phone mockup showing the Jackson property guidebook — real photo from `/photos/jackson-st/a4d681eb-0abb-4176-b4e0-e6a95ccad8e9.jpeg` at top with tab strip overlay, blurred welcome text lines + Check-in card + Wi-Fi card below
+- Sticky frosted-glass nav with TALO logo, "How it works" / "Pricing" anchor links, Log in + Get started buttons
+- Photo used: `/photos/jackson-st/a4d681eb-0abb-4176-b4e0-e6a95ccad8e9.jpeg` (rooftop/bay view at dusk)
+
+**New-account "Unpublished changes → Initial setup" banner fix** (`src/data/adminV3Store.js`)
+- Bug 1 (initial load): `hydrateFromFirestore()` left `_live = null` for brand-new tenants; `hasUnsavedChanges()` always returned `true` because `!_live`. Fixed: now sets `_live = JSON.parse(JSON.stringify(_draft))` and persists to localStorage when Firestore has no data — `hasUnsavedChanges()` computes `draft === live → false`.
+- Bug 2 (discard): `discardDraft()` called `buildEmptyDraft()` but left `_live = null`, so the banner never cleared. Fixed: when `_live` is null, discard now aligns `_live` with the reset draft (same content, both equal, banner clears).
+
+**Check-in / checkout tenant data isolation**
+- Bug: `v2_checkins` and `v2_checkouts` are global Firestore collections with no tenant filter — testrentals admin was showing talo's check-in records.
+- Write fix: `src/guidebook/v3/V3CheckInPage.jsx` and `src/guidebook/Checkout.jsx` now include `tenantId: getTenantId()` in every record written to Firestore.
+- Read fix: `src/admin-v2/pages/CheckIns.jsx`, `Checkouts.jsx`, and `GuestDatabase.jsx` all client-side filter: `r.tenantId === tid || (!r.tenantId && tid === 'talo')`. This means: new records are strictly tenant-scoped; talo's legacy records (no `tenantId` field) remain visible to talo only.
+
+**Login screen copy**
+- `src/admin-v3/Login.jsx`: heading changed from "TALO Admin" → "Welcome" (subtitle unchanged: "Sign in to manage your guidebooks")
+
+---
+
+### ✅ Session 15 (Jul 1 2026) — Per-property theme system — DEPLOYED & LIVE
+
+**Zero breaking changes guarantee:** Existing tenants have no `theme` field saved → layout resolves `v3data?.properties?.[slug]?.theme || 'modern'` → applies the `'modern'` (Default) theme which is visually identical to what was live before. Themes only change when a tenant explicitly picks one in Admin → Property Info → Guidebook Theme.
+
+**20 themes across 6 categories** (`src/data/themes.js` — new file):
+| Category | Themes |
+|---|---|
+| Coastal | Default (modern), Tropical Breeze, Deep Azure, Pearl Shore |
+| Alpine & Nordic | Nordic Pine, Chalet Noir, Glacial Frost ✦ |
+| Luxury & Urban | Midnight Gold ✦, Ivory Onyx, Obsidian Gloss ✦, Art Deco Noir |
+| Mediterranean | Imperial Marble ✦, Amber Ruins ✦, Pompeii Gloss ✦, Lapis Cairo ✦ |
+| Nature & Organic | Forest Canopy, Terracotta Bloom |
+| Retro & Ancient | Neon Retro, Chrome Dusk, Copper Patina |
+
+✦ = night-effect theme (real photo background in night mode — marked as premium tier, payment gate not yet built)
+
+**Night backgrounds:** 7 themes show real photo backgrounds in night mode:
+- Stars: Glacial, Obsidian Gloss, Amber Ruins, Pompeii Gloss → `public/images/space/starfield.jpg`
+- Milky Way: Midnight Gold, Imperial Marble, Lapis Cairo → `public/images/space/milkyway.jpg`
+- Photo darkened via `filter: brightness(0.20) saturate(1.6)` + `rgba(0,0,0,0.35)` film overlay
+- No SVG dots/animations — pure real photos only
+
+**Per-theme CSS vars** (all injected on `document.documentElement` by `injectTheme(themeKey, isNight)`):
+- `--t-bg`, `--t-surface`, `--t-border`, `--t-primary`, `--t-gradient`, `--t-text`, `--t-muted` (and more)
+- `--t-radius`, `--t-radius-sm` — structural shape (sharp for retro/luxury, rounded for nature/coastal)
+- `--t-font-heading`, `--t-font-body` — Google Fonts loaded dynamically via injected `<link>` tags
+- Night objects: `--t-bg: transparent` on starfield themes so body black shows through photo
+
+**Admin theme picker** (`src/admin-v3/pages/PropertyInfo.jsx`):
+- Live iframe preview — loads the actual guidebook at `?preview_theme=X`, fully interactive (scroll, tap night toggle — all works natively inside iframe)
+- `pointer-events` and `scrolling` both enabled on the iframe
+- Scrollable grid of all 20 themes grouped by category, swatch colors, glossy badge
+- Saving writes `theme` field to `properties[slug]` via `adminV3Store.updatePropertyInfo`
+
+**Rich-text editor toolbar additions** (`src/admin-v3/components/BodyEditor.jsx`):
+- H2, H3, ¶ (paragraph) buttons via `document.execCommand('formatBlock', ...)`
+- Bullet list button via `document.execCommand('insertUnorderedList')`
+- Small A / Large A font-size buttons
+
+**Key files changed this session:**
+- `src/data/themes.js` — NEW, all 20 themes + `injectTheme()` + `loadGoogleFont()`
+- `src/guidebook/v3/V3GuidebookLayout.jsx` — `injectTheme` call, `StarfieldBg` component, `?preview_theme=` param
+- `src/guidebook/v3/V3GuidebookPage.jsx` — `--t-font-heading` on h1/h2, `--t-radius` on activity cards
+- `src/guidebook/v3/V3FAQPage.jsx` — `--t-font-heading` on h1
+- `src/guidebook/v3/V3ActivityPage.jsx` — `--t-font-heading` on h1
+- `src/admin-v3/pages/PropertyInfo.jsx` — `ThemePhonePreview` (live iframe), `ThemePicker` component
+- `src/admin-v3/components/BodyEditor.jsx` — H2/H3/¶/bullet/size buttons
+- `public/images/space/starfield.jpg` + `milkyway.jpg` — real night sky photos
+
+**Pending for theme system:**
+- Payment gating for ✦ night-effect themes (marked premium, gate not yet built — all themes accessible for now)
+- Theme field stored in `properties[slug].theme` in Firestore once tenant publishes
+
+---
+
+### 🔲 Active pending tasks (in priority order)
+
+**1. Progress bar on signup** ← FIRST THING TO BUILD
+- User explicitly asked for this: "showing some kind of progress bar would be good here" (the Cloud Function call takes 2-3 seconds).
+- File: `src/platform/Signup.jsx`. Current state: `busy` flag shows "Creating your workspace…" text + disabled button. No visual progress.
+- Add animated steps during `busy`: e.g. step 1 "Creating your account" → step 2 "Setting up your workspace…" → step 3 "Almost ready…" with a progress bar or stepper animation. Transition between steps with a `useEffect` / `setInterval` while `busy === true`.
+
+**2. New-tenant guest guidebook read-path leak**
+- A brand-new tenant's guest guidebook (`/{slug}`) still shows TALO's sample content (the 36 seed activities, default blocks) because: (a) `firebaseSync.js` falls back to `v2_content/blocks` when tenant Firestore is empty; (b) `contentStore.js` defaults to built-in TALO content.
+- Fix: gate the `firebaseSync` legacy fallback (reading `v2_content/*`) to `getTenantId() === DEFAULT_TENANT_ID` only. Gate the `contentStore` hardcoded defaults similarly. Non-talo tenants with no published data should show empty guidebook sections.
+- Files: `src/data/firebaseSync.js`, `src/data/contentStore.js`.
+
+**3. Delete Tenant in super-admin**
+- User wants to delete test tenants like `testrentals` cleanly.
+- UI: add a "Delete Tenant" button in `src/super-admin/pages/TenantDetail.jsx` — Danger Zone, below Suspend. Require same credential re-verification as deactivation/suspension.
+- Backend: deletes `tenants/{tenantId}` + `slugs/{slug}` from Firestore. Optionally disables the Firebase Auth user (`admin.auth().updateUser(uid, { disabled: true })`). NOTE: can't truly delete Auth users from the client — super-admin panel talks to Firestore only (no Admin SDK from browser). Add a Cloud Function `deleteTenant` or handle Auth user deletion via a script / Firebase Console until a Cloud Function exists.
+- Data: never auto-delete — show a warning that tenant data will be wiped. Require typed confirmation ("I understand this is permanent").
+
+**4. Slug-change feature (`talo → sd`)**
+- User wants to rename `talo.talo.llc` to `sd.talo.llc`. Currently impossible because `tenantId === slug` — every Firestore path, Storage path, and Auth claim references the slug as the stable ID.
+- `slugs/{slug} → { tenantId }` lookup table already exists in Firestore, but the frontend reads the subdomain directly as the tenantId.
+- Full fix requires: (1) decouple tenantId from slug (tenantId becomes a stable UUID or internal id, slug is a mutable label); (2) Cloudflare Worker resolves slug → tenantId via Firestore before serving; (3) all data paths use tenantId, not slug. This is a non-trivial schema migration — design carefully before starting.
+
+**5. Node 20 → 22 for Cloud Function** ← BEFORE OCT 2026
+- Node 20 deprecation: 2026-10-30.
+- Files: `firebase.json` (change `"runtime": "nodejs20"` → `"nodejs22"`) + `functions/package.json` (engine field).
+- Then: `npx firebase deploy --only functions`.
+
+**6. Stripe integration** ← BLOCKED: need Stripe account
+- Plans currently "Free in beta" — all placeholder in `Signup.jsx` and `AccountLockedWall`.
+- When Stripe account is ready: wire Stripe Checkout to the plan cards, add webhooks for `customer.subscription.updated/deleted` → update `tenants/{tid}/status` + `plan` in Firestore.
+- Grace-period logic (3-day countdown banner → locked wall) is already designed — see "Payment expiry UX" section below.
+
+**7. P6 Support ticket system** ← AFTER Stripe
+
+**8. Multilingual support (Spanish + English)** ← TARGET: Aug–Sep 2026
+- Two halves:
+  - **Tenant side (`/admin-v3`):** "Support" sidebar item. Tenant submits a ticket (subject + message). Stored in `tenants/{tenantId}/support/{ticketId}` + mirrored to top-level `supportTickets/{id}` with `tenantId` + `tenantName` for super-admin querying. Tenant sees own ticket history + status.
+  - **Super-admin side (`/super-admin`):** "Support" panel — all tickets across all tenants, showing which account raised it. Filter by status. Reply + mark resolved. Open-ticket badge on dashboard.
+  - Firestore rules: tenants read/write own tickets only; superadmin reads/writes all.
+
+---
+
 ### 🔲 Next — blocked on external dependencies
 
-1. **Domain decision** → DECIDED (Jun 2026). Domain is **`talo.llc`**. URL strategy: **subdomain per tenant** — `abcrentals.talo.llc/beach-house` for guidebooks, `abcrentals.talo.llc/admin` for tenant admin, apex `talo.llc` for the marketing/signup site (website itself not built yet). Still TODO: confirm DNS registrar + email host for `talo.llc`.
-2. **Stripe account** → unblocks P3/P4. Create at stripe.com (free).
-3. **P2 — Wildcard host + subdomain routing** (IN PROGRESS):
-   - ✅ `getTenantId()` is subdomain-aware (`src/data/tenant.js`): reads tenant from `*.talo.llc` subdomain, `?tenant=` dev override, falls back to `talo` on legacy/localhost hosts (production unaffected). Helpers: `isTenantHost()`, `tenantOrigin()`, `PLATFORM_DOMAIN`, `RESERVED_SUBDOMAINS`.
-   - 🔲 **Host move (only you can do):** Firebase Hosting / GitHub Pages can't do wildcard subdomains. Move the FRONTEND to **Vercel** (or Netlify); keep all Firebase backend. Add domains `talo.llc`, `www.talo.llc`, `*.talo.llc`. DNS: A apex → Vercel IP, CNAME `www` + `*` → `cname.vercel-dns.com`. LEAVE MX + SPF/DKIM/DMARC TXT untouched; add explicit records for mail helper subdomains so the `*` wildcard doesn't shadow them.
-   - 🔲 **Code at cutover (me):** Vite `base` → `/`; host-based routing in `App.jsx` (tenant subdomain → guidebook+admin, apex → signup placeholder, reserved subdomain → super-admin); super-admin "Access links" → `tenantOrigin()`.
-   - Sequencing: current GitHub Pages site stays live until Vercel is verified on a test subdomain, then flip. Zero downtime.
-4. **P3 — Cloud Functions:** ⏳ IN PROGRESS. `provisionTenant` (HTTPS callable, `functions/index.js`) is **deployed & live** in `us-central1` (project `talo-guidebook`, Blaze). It atomically claims a slug, creates `tenants/{slug}` + `slugs/{slug}`, and sets the owner custom claim `{tenantId, role:'owner'}` — replacing `set-tenant-claims.mjs`. Deploy: `npx firebase deploy --only functions` (firebase CLI is a devDep; `.firebaserc`/`firebase.json` in repo). Artifact cleanup policy set (1-day). NOTE: runtime is Node 20 (deprecated 2026-10-30) — bump `firebase.json` + `functions/package.json` to Node 22 in a follow-up. Still TODO under P3: grace-period/expiry/plan-gating logic (Stripe-driven, deferred until Stripe is real).
-5. **P4 — Signup + Stripe:** ⏳ IN PROGRESS (signup live, Stripe placeholder). Apex `talo.llc` now serves a platform site via the Cloudflare worker (routes `talo.llc/*` + `*.talo.llc/*`; no DNS change needed — the worker intercepts the old GoDaddy parking records). Pages in `src/platform/`: `Landing.jsx` (marketing + Log in / Get started), `Signup.jsx` (createUser → `provisionTenant()` → success screen → `{slug}.talo.llc/admin-v3`), `WorkspaceLogin.jsx` (routes owners to their subdomain admin — Firebase sessions don't span subdomains, so login is per-subdomain). `App.jsx` ApexRoutes branch. Plans show "Free in beta" — **Stripe not wired** (deferred). Still TODO: real Stripe checkout, plan gating by property count, grace-period/expiry locked-wall (the locked-wall UI already exists in admin-v3 Layout). Dev tip: `getHostMode()` honors `?host=apex|tenant|legacy` on localhost (session-persisted) for local testing.
-6. **P6 — Support ticket system** (no external dependency; can build anytime, ideally after Stripe). Two halves:
-   - **Tenant side (`/admin-v3`):** a "Support" item in the left sidebar. Tenant submits a ticket (subject + message; optionally category/priority). Tickets stored in Firestore, e.g. `tenants/{tenantId}/support/{ticketId}` (mirrored or also written to a top-level `supportTickets` collection with `tenantId` + `tenantName` denormalized for easy super-admin querying). Tenant can see their own ticket history + status (open / in-progress / resolved) and any admin reply.
-   - **Super-admin side (`/super-admin`):** a "Support" panel listing all tickets across all tenants — showing not just the ticket but **which account raised it** (tenant name, slug, link to that tenant's detail page). Filter by status; open a ticket to read the thread and reply / mark resolved. Surface an open-ticket count badge on the dashboard.
-   - Firestore rules: a tenant can read/write only their own tickets (`request.auth.token.tenantId == tenantId`); superadmin (`request.auth.token.role == 'superadmin'`) can read/write all.
+2. **Stripe account** → unblocks P4 billing. Create at stripe.com (free).
+
+### Multilingual Support Plan — Aug/Sep 2026
+
+**Goal:** Full English + Spanish support for both the guest guidebook and the admin panel, so Spanish-speaking property owners can manage their properties entirely in Spanish.
+
+**Key insight:** All content (welcome text, house rules, FAQ, activity descriptions, property names) is already typed by the host and works in any language today. The only gap is ~350–500 hardcoded UI strings in the product.
+
+---
+
+#### Phase 1 — Infrastructure (1 session)
+1. Add `react-i18next` (handles plurals, interpolation, namespaces — don't roll a custom solution)
+2. Create `src/i18n/en.js` and `src/i18n/es.js` — flat key-value files, one namespace per area (`common`, `admin`, `guidebook`)
+3. `src/i18n/index.js` — initialise i18next, detect language from localStorage, expose `useTranslation` hook
+4. Language preference storage:
+   - Admin panel: `talo_admin_language` in localStorage (per browser, not synced across devices — simple)
+   - Per-property guidebook language: new field `properties[slug].language = 'en' | 'es'` in the admin store. Guest opens guidebook → language is set by the property, not a guest preference toggle
+5. Language switcher in admin nav (small EN/ES toggle, top-right of Layout sidebar)
+
+---
+
+#### Phase 2 — Admin panel strings (3–4 sessions)
+
+Every visible hardcoded string in every admin page needs wrapping in `t('key')`. Pages to cover:
+
+| File | Approximate string count |
+|---|---|
+| `src/admin-v3/Layout.jsx` | ~40 (sidebar labels, Publish/Discard/Unpublished changes, modals, status toasts) |
+| `src/admin-v3/Login.jsx` | ~15 (labels, placeholders, error messages, password reset) |
+| `src/admin-v3/pages/Dashboard.jsx` | ~20 (headers, empty states, property cards) |
+| `src/admin-v3/pages/PropertyHome.jsx` | ~25 (section grid, status badges, action buttons) |
+| `src/admin-v3/pages/PropertyInfo.jsx` | ~40 (all form labels, placeholders, helper text) |
+| `src/admin-v3/pages/SectionEditor.jsx` | ~30 (block labels, add/remove, reorder) |
+| `src/admin-v3/pages/PropertySections.jsx` | ~20 (section manager labels) |
+| `src/admin-v3/pages/GlobalActivities.jsx` | ~30 (activity modal, category manager) |
+| `src/admin-v3/pages/PropertyActivities.jsx` | ~20 |
+| `src/admin-v3/pages/GlobalContent.jsx` | ~15 |
+| `src/admin-v3/pages/FAQEditor.jsx` | ~20 |
+| `src/admin-v3/pages/AddProperty.jsx` | ~15 |
+| `src/admin-v2/pages/CheckIns.jsx` | ~30 |
+| `src/admin-v2/pages/Checkouts.jsx` | ~20 |
+| `src/admin-v2/pages/GuestDatabase.jsx` | ~20 |
+| `src/super-admin/` (all pages) | ~50 (separate from tenant admin — lower priority) |
+
+Total admin: ~400 strings. Mechanical but must be thorough — one missed string looks jarring.
+
+Special cases:
+- Interpolated strings: `"${count} properties"` → `t('property_count', { count })` with plural form in both locale files
+- Firebase Auth error codes (auth/wrong-password, auth/user-not-found, etc.) → map to translated messages manually
+- Date formatting: use `Intl.DateTimeFormat` with locale code (`'en-US'` vs `'es-ES'`) — affects check-in records, tenant dashboard timestamps
+
+---
+
+#### Phase 3 — Guest guidebook strings (1 session)
+
+Smaller scope — ~40–60 strings. Key files:
+
+| File | Strings |
+|---|---|
+| `src/guidebook/v3/V3GuidebookPage.jsx` | Tab labels ("The Home", "Rules", "Tips"), night mode toggle, section default labels |
+| `src/guidebook/v3/V3ActivityPage.jsx` | "Back to Guidebook", "places · tap to explore", category names |
+| `src/guidebook/v3/V3CheckInPage.jsx` | All form labels, validation messages, button text (~25 strings — highest guest impact) |
+| `src/guidebook/v3/V3FAQPage.jsx` | Page title, empty state |
+| `src/guidebook/Checkout.jsx` | Form labels, confirmation text |
+| `src/data/adminV3Store.js` | `ACTIVITY_CATEGORIES` default labels (if not renamed by host) |
+
+Guidebook language is determined by `properties[slug].language` — no guest-visible toggle. The host sets it once in admin Property Info.
+
+---
+
+#### Phase 4 — Translation & QA (1 session)
+
+1. Fill out `es.js` with all Spanish translations (can use AI-assisted draft, host reviews)
+2. End-to-end QA pass:
+   - Switch admin to Spanish → check every page for missing keys (i18next shows key name when missing)
+   - Open guidebook for an `es`-language property → check form labels, activity page, FAQ, checkout
+   - Test plurals: 1 property vs 3 properties ("1 propiedad" vs "3 propiedades")
+   - Test date formats: check-in records should render `dd/mm/yyyy` style for Spanish
+3. Add language field to admin Property Info UI (EN / ES selector) and wire it to guidebook rendering
+
+---
+
+#### Effort summary
+
+| Phase | Sessions | Output |
+|---|---|---|
+| Infrastructure | 1 | i18n setup, language storage, switcher |
+| Admin panel | 3–4 | All ~400 admin strings translated |
+| Guest guidebook | 1 | ~50 guidebook strings translated |
+| Translation + QA | 1 | Full Spanish locale file, QA pass |
+| **Total** | **6–7 sessions** | Complete EN + ES product |
+
+**Not in scope:** Right-to-left layout (Spanish is LTR), V1/V2 admin (deprecated), super-admin panel (English-only is fine for now — admins are platform operators).
+
+---
 
 ### Payment expiry UX (agreed, build in P3/P4)
 - **Grace period:** 3-day countdown banner inside admin panel, full access retained
@@ -625,6 +877,105 @@ export default defineConfig(({ command }) => ({
 
 ## 11. Resume Prompts
 
+### Master handoff prompt (copy-paste this into a new Claude window)
+```
+I'm continuing work on the "talo-guidebook" project — a React SPA being productized into a multi-tenant SaaS platform for short-term rental guidebooks.
+
+Project root: /Users/anantgyan/talo-guidebook
+READ /Users/anantgyan/talo-guidebook/Handoff.md FIRST — it has the full history, architecture, and pending task list.
+
+== CURRENT LIVE STATE (as of Jul 1 2026) ==
+
+Two separate deploy targets:
+1. GitHub Pages (legacy): https://talodeveloper.github.io/talo-guidebook/ — V2 + V3 admin + V3 guidebook for the original TALO properties. Deploy: npm run deploy
+2. Cloudflare Workers (new): talo.llc (apex marketing site) + *.talo.llc (per-tenant). Deploy: npm run deploy:cf (= DEPLOY_TARGET=cloudflare vite build && wrangler deploy)
+
+Firebase project: talo-guidebook (Blaze)
+- Firestore: multi-tenant model — tenants/{tenantId}/data/live (per-tenant published content), slugs/{slug} (slug→tenantId map)
+- Auth: real Firebase Auth (email/password). Custom claims: {role:'superadmin'} for super-admin, {tenantId, role:'owner'} for tenant owners
+- Cloud Functions: provisionTenant (HTTPS callable, us-central1) — self-serve tenant creation
+- Storage: public-read, auth-required write
+
+Host routing: getHostMode() in src/data/tenant.js returns 'apex'|'tenant'|'legacy'
+- apex (talo.llc) → ApexRoutes: Landing, Signup, WorkspaceLogin
+- tenant (*.talo.llc) → TenantRoutes: admin-v3 + /:slug guidebook
+- legacy (github.io) → all old routes
+
+== ACTIVE PENDING TASKS (in priority order) ==
+
+1. PROGRESS BAR ON SIGNUP — src/platform/Signup.jsx
+   The signup form calls createUserWithEmailAndPassword then provisionTenant Cloud Function (2-3s).
+   Currently busy state just shows "Creating your workspace…" text + disabled button.
+   User asked for a visual progress bar/stepper: step 1 "Creating your account" → step 2 "Setting up your workspace…" → step 3 "Almost ready…"
+   Add animated progress indicator during the busy state. Does NOT require any backend changes.
+
+2. NEW-TENANT GUEST GUIDEBOOK READ-LEAK — src/data/firebaseSync.js + src/data/contentStore.js
+   A brand-new tenant's guest guidebook (/{slug}) still shows TALO's sample content because:
+   (a) firebaseSync.js falls back to reading v2_content/blocks (TALO's legacy path) when tenant Firestore is empty
+   (b) contentStore.js defaults to hardcoded TALO seed blocks
+   Fix: gate both of these to getTenantId() === DEFAULT_TENANT_ID ('talo') only. New tenants with no
+   published content should render empty guidebook sections, not TALO's data.
+
+3. DELETE TENANT IN SUPER-ADMIN — src/super-admin/pages/TenantDetail.jsx
+   User wants to delete test tenants (testrentals, etc). 
+   Add "Delete Tenant" button in the Danger Zone (below Suspend), with:
+   - Typed confirmation ("type the tenant slug to confirm")
+   - Credential re-verification (same modal as Deactivate/Suspend)
+   - Deletes tenants/{tenantId} + slugs/{slug} from Firestore
+   - Optionally disables the Firebase Auth user (note: browser can't call Admin SDK — either add a
+     deleteTenant Cloud Function, or leave Auth user in place and just delete Firestore docs)
+   - Data warning: "This is permanent and cannot be undone. All guidebook content will be lost."
+
+4. SLUG-CHANGE FEATURE (talo → sd) — complex, needs design
+   User wants to rename talo.talo.llc to sd.talo.llc.
+   Currently impossible: tenantId === slug, used as primary key everywhere (Firestore paths, Storage paths, Auth claims).
+   slugs/{slug} → { tenantId } lookup table already exists but getTenantId() reads subdomain directly.
+   Need to decouple: stable internal tenantId (UUID) + mutable slug label. Non-trivial migration.
+   Read Handoff.md for full context before starting this one.
+
+5. NODE 20 → 22 FOR CLOUD FUNCTION — deadline Oct 30 2026
+   files: firebase.json ("runtime": "nodejs20" → "nodejs22") + functions/package.json (engine field)
+   then: npx firebase deploy --only functions
+
+6. STRIPE INTEGRATION — blocked: need Stripe account first
+   Plans are "Free in beta" placeholder everywhere. When Stripe account is ready, wire up plan billing.
+
+7. P6 SUPPORT TICKETS — after Stripe
+   Tenant submits tickets in /admin-v3 sidebar. Super-admin sees all tickets + which account raised it.
+
+8. MULTILINGUAL SUPPORT (EN + ES) — target Aug/Sep 2026
+   Full English + Spanish for both admin panel and guest guidebook. 6–7 sessions total.
+   See "Multilingual Support Plan" section below for full phase breakdown.
+   Key decision: per-property language (host sets it in Property Info), not a guest toggle.
+   Infrastructure: react-i18next, src/i18n/en.js + es.js, language switcher in admin nav sidebar.
+
+== KEY FILES ==
+src/data/tenant.js — getTenantId, getHostMode, guidebookPath, tenantOrigin, PLATFORM_DOMAIN
+src/data/themes.js — all 20 themes, injectTheme(), loadGoogleFont() — NEW in Session 15
+src/data/adminV3Store.js — all V3 admin state, publish guard, self-heal, hydrateFromFirestore
+src/data/firebaseSync.js — onSnapshot listeners; falls back to legacy v2_content path (READ-LEAK BUG HERE)
+src/data/contentStore.js — hardcoded TALO defaults (READ-LEAK BUG HERE TOO)
+src/admin-v3/Layout.jsx — AccountLockedWall, LoadingContent, LoadContentError, handlePublish (async)
+src/admin-v3/pages/PropertyInfo.jsx — ThemePhonePreview (live iframe), ThemePicker (20 themes)
+src/guidebook/v3/V3GuidebookLayout.jsx — theme injection, StarfieldBg, ?preview_theme= param
+src/platform/Signup.jsx — self-serve signup form (PROGRESS BAR GOES HERE)
+src/super-admin/pages/TenantDetail.jsx — Deactivate/Suspend/Reactivate flow (DELETE GOES HERE)
+functions/index.js — provisionTenant Cloud Function
+wrangler.jsonc — Cloudflare Worker routes
+public/images/space/ — starfield.jpg (stars) + milkyway.jpg (Milky Way) — night backgrounds
+
+== CRITICAL RULES ==
+- V1 (/:slug admin + guidebook) — NEVER TOUCH
+- V2 admin/guidebook — NEVER TOUCH unless fixing a V2-specific bug
+- pushToFirestore() writes ONLY tenants/{tid}/data/live — never global v2_content/* (cross-tenant pollution)
+- publish() is async, always await it, check result ('blocked-defaults'|'blocked-error'|true|false)
+- New tenants start from buildEmptyDraft() — never buildDefaultDraft() (TALO seed)
+- Icon component: <Icon name="icon_name" /> uses material-symbols-outlined CSS class — NEVER inline fontFamily: 'Material Icons'
+- Dev server: npm run dev → port 5175 (strictPort)
+- To test apex: localhost:5175?host=apex (persisted in sessionStorage)
+- To test tenant: localhost:5175?host=tenant&tenant=testrentals
+```
+
 ### To work on V2 (guidebook or admin):
 ```
 I'm continuing work on the "talo-guidebook" project.
@@ -653,7 +1004,6 @@ Quick V3 orientation:
 - Dev server: npm run dev → port 5175
 - V3 guidebook: http://localhost:5175/v3/reynard-way (also hawk-street, jackson-st, vista-pointe)
 - V3 admin: http://localhost:5175/admin-v3 — Login: Firebase Auth user (see Firebase Console → Authentication)
-- V3 is NOT yet deployed to GitHub Pages (V2 is live)
 - V3 = V2 layout + Activity Center section (replaces Local Guide + Things To Do)
 - Activity Center: 4 tabs (RBC, Parks & Beaches, Shopping & Attractions, Others), flip cards
 - Global Activity Repository: 36 pre-seeded activities with local images from public/images/local/

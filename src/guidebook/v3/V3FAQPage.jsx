@@ -6,29 +6,13 @@ import { NightModeCtx, V3RightSidebar, readV3Data, buildGuidebookSections } from
 import { ADMIN_V3_LIVE_KEY, buildFaqList } from '../../data/adminV3Store'
 import { guidebookPath } from '../../data/tenant'
 
-const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
-const PRIMARY   = '#C84B31'
-const TEXT      = '#1C0F06'
-const MUTED     = '#78716C'
-const BORDER    = 'rgba(200,80,50,0.12)'
-const CARD_BG   = '#FFFFFF'
-const SAND_BG   = '#FFF7ED'
-
-const N_SUNSET  = 'linear-gradient(135deg, #1E1B4B 0%, #312E81 35%, #4F46E5 65%, #7C3AED 100%)'
-const N_PRIMARY = '#818CF8'
-const N_TEXT    = '#E2E8F0'
-const N_MUTED   = '#94A3B8'
-const N_BORDER  = 'rgba(99,102,241,0.20)'
-const N_CARD_BG = '#111827'
-const N_SAND_BG = '#0B1120'
+// Colors resolved via CSS custom properties injected by V3GuidebookLayout
 
 
 function FAQItem({ item, index, open, onToggle, nightMode, cardBg, cardBorder, primary, textColor, mutedColor }) {
-  const numBg = nightMode
-    ? 'linear-gradient(135deg, #4338CA, #6D28D9)'
-    : 'linear-gradient(135deg, #C84B31, #EA580C)'
-  const hoverBg = nightMode ? 'rgba(99,102,241,0.08)' : 'rgba(249,115,22,0.06)'
-  const dividerColor = nightMode ? 'rgba(99,102,241,0.12)' : 'rgba(251,146,60,0.15)'
+  const numBg = 'var(--t-gradient)'
+  const hoverBg = 'var(--t-primary-05)'
+  const dividerColor = 'var(--t-primary-12)'
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: `1px solid ${cardBorder}`, background: cardBg }}>
@@ -72,14 +56,14 @@ export default function V3FAQPage() {
 
   const toggle = (i) => setOpenIndex(openIndex === i ? null : i)
 
-  const bg         = nightMode ? N_SAND_BG : SAND_BG
-  const cardBg     = nightMode ? N_CARD_BG : CARD_BG
-  const cardBorder = nightMode ? N_BORDER  : 'rgba(251,146,60,0.3)'
-  const headerGrad = nightMode ? N_SUNSET  : SUNSET
-  const primary    = nightMode ? N_PRIMARY : PRIMARY
-  const textColor  = nightMode ? N_TEXT    : TEXT
-  const mutedColor = nightMode ? N_MUTED   : MUTED
-  const border     = nightMode ? N_BORDER  : BORDER
+  const bg         = 'var(--t-bg)'
+  const cardBg     = 'var(--t-surface)'
+  const cardBorder = 'var(--t-border)'
+  const headerGrad = 'var(--t-gradient)'
+  const primary    = 'var(--t-primary)'
+  const textColor  = 'var(--t-text)'
+  const mutedColor = 'var(--t-muted)'
+  const border     = 'var(--t-border)'
   const mapsUrl    = `https://maps.google.com/?q=${encodeURIComponent(property.address)}`
 
   const topLevelSections = buildGuidebookSections(readV3Data(), slug).filter((s) => !s.parentKey && !s.virtual)
@@ -141,14 +125,14 @@ export default function V3FAQPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0"
-                    style={{ background: nightMode ? 'linear-gradient(135deg, #4338CA, #6D28D9)' : 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                    style={{ background: 'var(--t-gradient)' }}>
                     <Icon name="help" size={20} className="text-white" />
                   </div>
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: primary }}>
                       Frequently Asked Questions
                     </p>
-                    <h1 className="text-2xl font-bold" style={{ color: textColor }}>{property.name}</h1>
+                    <h1 className="text-2xl font-bold" style={{ color: textColor, fontFamily: 'var(--t-font-heading)' }}>{property.name}</h1>
                     <p className="text-[12px] mt-0.5" style={{ color: mutedColor }}>
                       {faqs.length} questions · Tap any question to see the answer
                     </p>
@@ -157,7 +141,7 @@ export default function V3FAQPage() {
                 <div className="faq-contact-btns flex gap-2 flex-shrink-0">
                   <a href={`tel:${property.ownerPhone}`}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm"
-                    style={{ background: nightMode ? 'linear-gradient(135deg, #4338CA, #6D28D9)' : 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                    style={{ background: 'var(--t-gradient)' }}>
                     <Icon name="phone" size={13} className="text-white" /> Call Joe
                   </a>
                   <a href={`mailto:${property.ownerEmail}`}

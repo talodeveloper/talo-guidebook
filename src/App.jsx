@@ -17,6 +17,7 @@ import SuperAdminLayout from './super-admin/Layout'
 import SuperAdminDashboard from './super-admin/pages/Dashboard'
 import SuperAdminTenantDetail from './super-admin/pages/TenantDetail'
 import SuperAdminCreateTenant from './super-admin/pages/CreateTenant'
+import SuperAdminMaintenance from './super-admin/pages/Maintenance'
 
 // Guidebook v1 (original teal theme)
 import GuidebookLayout from './guidebook/GuidebookLayout'
@@ -146,6 +147,16 @@ function ApexRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<WorkspaceLogin />} />
+      <Route path="/super-admin">
+        <Route index element={<SuperAdminLogin />} />
+        <Route path="login" element={<SuperAdminLogin />} />
+        <Route element={<RequireSuperAdmin><SuperAdminLayout /></RequireSuperAdmin>}>
+          <Route path="dashboard" element={<SuperAdminDashboard />} />
+          <Route path="tenant/:tenantId" element={<SuperAdminTenantDetail />} />
+          <Route path="create-tenant" element={<SuperAdminCreateTenant />} />
+          <Route path="maintenance" element={<SuperAdminMaintenance />} />
+        </Route>
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

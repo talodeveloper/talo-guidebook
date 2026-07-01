@@ -27,8 +27,7 @@ function PartToggle({ enabled, onToggle, title }) {
   )
 }
 
-const isDeletable = (block) =>
-  block.id.startsWith('blk-') || PLACE_SECTIONS.includes(block.sectionKey)
+const isDeletable = (_block) => true
 
 function ImageCaptionField({ image, onChange }) {
   return (

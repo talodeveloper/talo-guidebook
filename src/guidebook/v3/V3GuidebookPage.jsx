@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useOutletContext, Link, useParams } from 'react-router-dom'
+import { useOutletContext, Link, useParams, useLocation } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { ADMIN_V3_LIVE_KEY, applyPropertyBlockOrder, buildV3Sections } from '../../data/adminV3Store'
 import { guidebookPath } from '../../data/tenant'
@@ -49,45 +49,26 @@ const resolveImg = (url) => {
   return url
 }
 
-// ─── Theme constants (identical to V2) ────────────────────────────────────────
-const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
-const OCEAN     = 'linear-gradient(135deg, #0C4A6E 0%, #0369A1 50%, #0284C7 100%)'
-const CARD_BG   = '#FFFFFF'
-const SAND_BG   = '#FFF7ED'
-const PRIMARY   = '#C84B31'
-const PRIMARY_D = '#9B3322'
-const CORAL     = '#EA580C'
-const TEXT      = '#1C0F06'
-const MUTED     = '#78716C'
-const BORDER    = 'rgba(200,80,50,0.12)'
-
-const N_SUNSET    = 'linear-gradient(135deg, #1E1B4B 0%, #312E81 35%, #4F46E5 65%, #7C3AED 100%)'
-const N_OCEAN     = 'linear-gradient(135deg, #0B1120 0%, #0C2550 50%, #1E3A8A 100%)'
-const N_CARD_BG   = '#111827'
-const N_SAND_BG   = '#0B1120'
-const N_PRIMARY   = '#818CF8'
-const N_PRIMARY_D = '#6366F1'
-const N_CORAL     = '#A78BFA'
-const N_TEXT      = '#E2E8F0'
-const N_MUTED     = '#94A3B8'
-const N_BORDER    = 'rgba(99,102,241,0.20)'
+// CSS custom properties are injected on :root by V3GuidebookLayout (day theme)
+// or NIGHT_VARS (when night mode is on). Components reference var(--t-*) strings.
 
 export const NightModeCtx = React.createContext(false)
 
+// Returns CSS variable references — resolved by whichever vars are injected on :root
 function useTheme() {
   const night = React.useContext(NightModeCtx)
   return {
     night,
-    SUNSET:    night ? N_SUNSET    : SUNSET,
-    OCEAN:     night ? N_OCEAN     : OCEAN,
-    CARD_BG:   night ? N_CARD_BG   : CARD_BG,
-    SAND_BG:   night ? N_SAND_BG   : SAND_BG,
-    PRIMARY:   night ? N_PRIMARY   : PRIMARY,
-    PRIMARY_D: night ? N_PRIMARY_D : PRIMARY_D,
-    CORAL:     night ? N_CORAL     : CORAL,
-    TEXT:      night ? N_TEXT      : TEXT,
-    MUTED:     night ? N_MUTED     : MUTED,
-    BORDER:    night ? N_BORDER    : BORDER,
+    SUNSET:    'var(--t-gradient)',
+    OCEAN:     'var(--t-gradient-2)',
+    CARD_BG:   'var(--t-surface)',
+    SAND_BG:   'var(--t-bg)',
+    PRIMARY:   'var(--t-primary)',
+    PRIMARY_D: 'var(--t-primary-d)',
+    CORAL:     'var(--t-coral)',
+    TEXT:      'var(--t-text)',
+    MUTED:     'var(--t-muted)',
+    BORDER:    'var(--t-border)',
   }
 }
 
@@ -101,7 +82,7 @@ function BlockImages({ images }) {
         <figure key={i} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
           <img src={imgUrl(img.src)} alt={img.caption} className="w-full object-cover" style={{ maxHeight: images.length === 1 ? '360px' : '220px' }} />
           {img.caption && (
-            <figcaption className="px-3 py-1.5 text-[11px] text-center" style={{ color: MUTED, background: '#FFF7ED' }}>
+            <figcaption className="px-3 py-1.5 text-[11px] text-center" style={{ color: 'var(--t-muted)', background: 'var(--t-bg)' }}>
               {img.caption}
             </figcaption>
           )}
@@ -133,7 +114,7 @@ function ContentBlock({ block }) {
           {block.phone && (
             <a href={`tel:${block.phone}`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-opacity hover:opacity-80"
-              style={{ background: 'rgba(200,75,49,0.1)', color: PRIMARY }}>
+              style={{ background: 'var(--t-primary-10)', color: PRIMARY }}>
               <Icon name="phone" size={13} /> {block.phone}
             </a>
           )}
@@ -171,13 +152,13 @@ export function ActivityCard({ activity, activeId, setActiveId }) {
       }}>
         {/* Front */}
         <div style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', position: 'absolute', inset: 0,
-          border: `1px solid ${BORDER}`, background: CARD_BG, borderRadius: 16, overflow: 'hidden' }}
+          border: `1px solid ${BORDER}`, background: CARD_BG, borderRadius: 'var(--t-radius)', overflow: 'hidden' }}
           className="flex flex-col shadow-sm">
           {resolveImg(activity.imageUrl) ? (
             <div className="relative flex-1 overflow-hidden">
               <img src={resolveImg(activity.imageUrl)} alt={activity.name} className="w-full h-full object-cover"
                 onError={e => { e.currentTarget.style.display = 'none' }} />
-              <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: 'linear-gradient(to top, rgba(124,45,18,0.85), transparent)' }} />
+              <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }} />
               <div className="absolute bottom-0 inset-x-0 p-3">
                 <p className="text-white font-bold text-[13px] leading-tight line-clamp-2">{activity.name}</p>
                 <p className="text-white/65 text-[10px] mt-1 flex items-center gap-1">
@@ -186,8 +167,8 @@ export function ActivityCard({ activity, activeId, setActiveId }) {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-4" style={{ background: 'rgba(200,75,49,0.05)' }}>
-              <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: 'rgba(200,75,49,0.15)' }}>
+            <div className="flex-1 flex flex-col items-center justify-center p-4" style={{ background: 'var(--t-primary-05)' }}>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: 'var(--t-primary-15)' }}>
                 <Icon name="place" size={22} style={{ color: PRIMARY }} />
               </div>
               <p className="font-bold text-[13px] text-center leading-tight" style={{ color: TEXT }}>{activity.name}</p>
@@ -202,8 +183,8 @@ export function ActivityCard({ activity, activeId, setActiveId }) {
         <div style={{
           backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
           position: 'absolute', inset: 0, transform: 'rotateY(180deg)',
-          background: night ? '#1E293B' : '#FFF7ED', border: `1px solid ${BORDER}`,
-          borderRadius: 16, padding: '14px', display: 'flex', flexDirection: 'column',
+          background: 'var(--t-surface-alt)', border: `1px solid ${BORDER}`,
+          borderRadius: 'var(--t-radius)', padding: '14px', display: 'flex', flexDirection: 'column',
         }}>
           <div className="flex items-start gap-1.5 mb-2">
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
@@ -223,11 +204,11 @@ export function ActivityCard({ activity, activeId, setActiveId }) {
             {activity.description}
           </div>
           {(activity.phone || activity.website) && (
-            <div className="flex gap-1.5 mt-2 pt-2 flex-shrink-0" style={{ borderTop: `1px solid rgba(200,75,49,0.15)` }}>
+            <div className="flex gap-1.5 mt-2 pt-2 flex-shrink-0" style={{ borderTop: '1px solid var(--t-primary-15)' }}>
               {activity.phone && (
                 <a href={`tel:${activity.phone}`} onClick={(e) => e.stopPropagation()}
                   className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold transition-opacity hover:opacity-80"
-                  style={{ background: 'rgba(200,75,49,0.1)', color: PRIMARY }}>
+                  style={{ background: 'var(--t-primary-10)', color: PRIMARY }}>
                   <Icon name="phone" size={11} /> Call
                 </a>
               )}
@@ -254,7 +235,7 @@ function SectionHeader({ section }) {
       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: SUNSET }}>
         <Icon name={section.icon} size={18} className="text-white" />
       </div>
-      <h2 className="text-headline-md font-bold" style={{ color: PRIMARY_D }}>{section.label}</h2>
+      <h2 className="text-headline-md font-bold" style={{ color: PRIMARY_D, fontFamily: 'var(--t-font-heading)' }}>{section.label}</h2>
     </div>
   )
 }
@@ -427,6 +408,7 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
 export default function V3GuidebookPage() {
   const { property, nightMode, toggleNightMode } = useOutletContext()
   const { slug } = useParams()
+  const location = useLocation()
   const [sections, setSections] = useState(() => buildGuidebookSections(readV3Data(), slug))
   const [activeSection, setActiveSection] = useState(null)
   const [blocks, setBlocks] = useState({})
@@ -438,16 +420,17 @@ export default function V3GuidebookPage() {
   const showPropertyCard = property.showPropertyCard !== false
   const checkInEnabled   = property.checkInEnabled !== false
 
+  // t uses CSS variable references — resolved at paint time from :root vars injected by V3GuidebookLayout
   const t = {
-    BG:       nightMode ? N_SAND_BG   : SAND_BG,
-    CARD:     nightMode ? N_CARD_BG   : CARD_BG,
-    BORDER:   nightMode ? N_BORDER    : BORDER,
-    PRIMARY:  nightMode ? N_PRIMARY   : PRIMARY,
-    PRIMARY_D:nightMode ? N_PRIMARY_D : PRIMARY_D,
-    MUTED:    nightMode ? N_MUTED     : MUTED,
-    TEXT:     nightMode ? N_TEXT      : TEXT,
-    SUNSET:   nightMode ? N_SUNSET    : SUNSET,
-    OCEAN:    nightMode ? N_OCEAN     : OCEAN,
+    BG:       'var(--t-bg)',
+    CARD:     'var(--t-surface)',
+    BORDER:   'var(--t-border)',
+    PRIMARY:  'var(--t-primary)',
+    PRIMARY_D:'var(--t-primary-d)',
+    MUTED:    'var(--t-muted)',
+    TEXT:     'var(--t-text)',
+    SUNSET:   'var(--t-gradient)',
+    OCEAN:    'var(--t-gradient-2)',
     HERO_IMG: (() => {
       const v3data = readV3Data()
       const gh = v3data?.globalHero || {}
@@ -480,6 +463,17 @@ export default function V3GuidebookPage() {
     load()
     return contentStore.subscribe(load)
   }, [slug])
+
+  // Scroll to hash fragment after sections render (handles back-navigation from
+  // FAQ/Activity pages that link to #section-key anchors on this page).
+  useEffect(() => {
+    const hash = location.hash?.slice(1)
+    if (!hash || Object.keys(blocks).length === 0) return
+    const timer = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+    return () => clearTimeout(timer)
+  }, [location.hash, blocks])
 
   useEffect(() => {
     const observers = []
@@ -571,7 +565,7 @@ export default function V3GuidebookPage() {
     <div className="min-h-screen" style={{ background: t.BG }}>
 
       {/* Hero */}
-      <div className="relative w-full" style={{ height: 'clamp(170px, 20vw, 260px)', backgroundColor: nightMode ? '#0B1120' : '#FFF7ED' }}>
+      <div className="relative w-full" style={{ height: 'clamp(170px, 20vw, 260px)', backgroundColor: 'var(--t-bg)' }}>
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute inset-0" style={{ backgroundImage: `url(${t.HERO_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
           <img src={t.HERO_IMG} alt="" aria-hidden="true" className="print-hero-img" style={{ display: 'none', position: 'absolute', inset: 0 }} />
@@ -598,13 +592,14 @@ export default function V3GuidebookPage() {
           <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 'clamp(11px, 1.4vw, 14px)', fontWeight: 700,
             letterSpacing: '0.22em', textTransform: 'uppercase', marginBottom: 4, textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>Guidebook</p>
           <h1 style={{ color: '#fff', fontSize: 'clamp(18px, 3vw, 32px)', fontWeight: 800, lineHeight: 1.2,
-            textShadow: '0 2px 10px rgba(0,0,0,0.9)', textAlign: 'center' }}>{property.name}</h1>
+            textShadow: '0 2px 10px rgba(0,0,0,0.9)', textAlign: 'center',
+            fontFamily: 'var(--t-font-heading)' }}>{property.name}</h1>
         </div>
       </div>
 
       {/* Mobile TOC */}
       <div className="no-print md:hidden sticky top-0 z-40 backdrop-blur-md border-b px-4 py-2"
-        style={{ background: nightMode ? 'rgba(11,17,32,0.95)' : 'rgba(255,247,237,0.95)', borderColor: t.BORDER }}>
+        style={{ background: 'var(--t-bg)', borderColor: t.BORDER }}>
         <button onClick={() => setTocOpen(!tocOpen)}
           className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-label-md font-semibold"
           style={{ borderColor: t.BORDER, color: t.TEXT, background: t.CARD }}>
@@ -635,7 +630,7 @@ export default function V3GuidebookPage() {
               return (
                 <React.Fragment key={s.key}>
                   <div className="w-full flex items-center border-b"
-                    style={{ borderColor: t.BORDER, background: activeSection === s.key ? `${t.PRIMARY}18` : 'transparent' }}>
+                    style={{ borderColor: t.BORDER, background: activeSection === s.key ? 'var(--t-primary-10)' : 'transparent' }}>
                     <button onClick={() => { scrollTo(s.key); if (hasKids && !expanded) toggleGroup(s.key) }}
                       className="flex-1 flex items-center gap-3 px-4 py-3 text-left text-label-md min-w-0"
                       style={{ color: activeSection === s.key ? t.PRIMARY : t.MUTED, fontWeight: activeSection === s.key ? 700 : 500 }}>
@@ -707,7 +702,7 @@ export default function V3GuidebookPage() {
             <div className="flex flex-wrap gap-2 flex-shrink-0">
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-opacity hover:opacity-80"
-                style={{ background: `${t.PRIMARY}18`, color: t.PRIMARY }}>
+                style={{ background: 'var(--t-primary-10)', color: t.PRIMARY }}>
                 <Icon name="map" size={13} /> Map
               </a>
               {checkInEnabled && (
@@ -755,7 +750,7 @@ export default function V3GuidebookPage() {
                 return (
                   <React.Fragment key={s.key}>
                     <div className="w-full flex items-center rounded-lg transition-colors"
-                      style={{ background: activeSection === s.key ? `${t.PRIMARY}18` : 'transparent' }}>
+                      style={{ background: activeSection === s.key ? 'var(--t-primary-10)' : 'transparent' }}>
                       <button onClick={() => { scrollTo(s.key); if (hasKids && !expanded) toggleGroup(s.key) }}
                         className="flex-1 text-left flex items-center gap-2 px-3 py-2 text-[13px] min-w-0"
                         style={{ color: activeSection === s.key ? t.PRIMARY : t.MUTED, fontWeight: activeSection === s.key ? 700 : 500 }}>

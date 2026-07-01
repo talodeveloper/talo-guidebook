@@ -3,41 +3,24 @@ import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { NightModeCtx, readV3Data } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
-import { guidebookPath } from '../../data/tenant'
+import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db } from '../../firebase'
 import { collection, addDoc } from 'firebase/firestore'
 
-// ─── Day theme ─────────────────────────────────────────────────────────────
-const SUNSET    = 'linear-gradient(135deg, #7C2D12 0%, #C84B31 30%, #EA580C 58%, #F97316 78%, #FCD34D 100%)'
-const PRIMARY   = '#C84B31'
-const TEXT      = '#1C0F06'
-const MUTED     = '#78716C'
-const BORDER    = 'rgba(200,80,50,0.12)'
-const CARD_BG   = '#FFFFFF'
-const SAND_BG   = '#FFF7ED'
-
-// ─── Night theme ───────────────────────────────────────────────────────────
-const N_SUNSET  = 'linear-gradient(135deg, #1E1B4B 0%, #312E81 35%, #4F46E5 65%, #7C3AED 100%)'
-const N_PRIMARY = '#818CF8'
-const N_TEXT    = '#E2E8F0'
-const N_MUTED   = '#94A3B8'
-const N_BORDER  = 'rgba(99,102,241,0.20)'
-const N_CARD_BG = '#111827'
-const N_SAND_BG = '#0B1120'
-
+// Colors resolved via CSS custom properties injected by V3GuidebookLayout
 const GREEN_GRAD = 'linear-gradient(135deg, #059669 0%, #10B981 100%)'
 const BLUE_GRAD  = 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)'
 
-function buildTheme(nightMode) {
+function buildTheme() {
   return {
-    BG:     nightMode ? N_SAND_BG : SAND_BG,
-    CARD:   nightMode ? N_CARD_BG : CARD_BG,
-    BORDER: nightMode ? N_BORDER  : BORDER,
-    PRIMARY:nightMode ? N_PRIMARY : PRIMARY,
-    TEXT:   nightMode ? N_TEXT    : TEXT,
-    MUTED:  nightMode ? N_MUTED   : MUTED,
-    SUNSET: nightMode ? N_SUNSET  : SUNSET,
+    BG:      'var(--t-bg)',
+    CARD:    'var(--t-surface)',
+    BORDER:  'var(--t-border)',
+    PRIMARY: 'var(--t-primary)',
+    TEXT:    'var(--t-text)',
+    MUTED:   'var(--t-muted)',
+    SUNSET:  'var(--t-gradient)',
   }
 }
 
@@ -57,7 +40,7 @@ function FormInput({ label, required, optional, error, t, nightMode, ...props })
     <div>
       <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
         {label}{' '}
-        {required && <span style={{ color: PRIMARY }}>*</span>}
+        {required && <span style={{ color: 'var(--t-primary)' }}>*</span>}
         {optional && <span className="ml-1 font-normal normal-case" style={{ color: t.MUTED }}>(optional)</span>}
       </label>
       <input
@@ -65,7 +48,7 @@ function FormInput({ label, required, optional, error, t, nightMode, ...props })
         className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none transition-all"
         style={{
           border: `1.5px solid ${error ? '#EF4444' : t.BORDER}`,
-          background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+          background: 'var(--t-bg)',
           color: t.TEXT,
         }}
       />
@@ -80,7 +63,7 @@ function FormInput({ label, required, optional, error, t, nightMode, ...props })
 
 // ─── Success screen ──────────────────────────────────────────────────────────
 function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offerText, isPrimary }) {
-  const t = buildTheme(nightMode)
+  const t = buildTheme()
   const fullName = `${data.firstName} ${data.lastName}`.trim()
   return (
     <NightModeCtx.Provider value={nightMode}>
@@ -122,9 +105,9 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
 
           <div className="rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
             <div className="ci-print-show mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: PRIMARY }}>TALO Rentals</p>
-              <h2 className="text-xl font-bold mb-1" style={{ color: TEXT }}>House Rules Agreement</h2>
-              <p className="text-[13px]" style={{ color: MUTED }}>{property.name} · {property.address}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>TALO Rentals</p>
+              <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--t-text)' }}>House Rules Agreement</h2>
+              <p className="text-[13px]" style={{ color: 'var(--t-muted)' }}>{property.name} · {property.address}</p>
               <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
               <div className="space-y-1 text-[13px]">
                 <p><strong>Guest Name:</strong> {fullName}</p>
@@ -162,7 +145,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
                     <div className="ci-print-show text-[11px] leading-relaxed mt-0.5
                       [&_p]:mb-0.5 [&_strong]:font-semibold
                       [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
-                      style={{ color: MUTED }}
+                      style={{ color: 'var(--t-muted)' }}
                       dangerouslySetInnerHTML={{ __html: rule.body }}
                     />
                   </div>
@@ -205,7 +188,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
 
 // ─── Interstitial: Did you make the reservation? ─────────────────────────────
 function ChoiceScreen({ property, slug, nightMode, onChoose }) {
-  const t = buildTheme(nightMode)
+  const t = buildTheme()
   return (
     <NightModeCtx.Provider value={nightMode}>
       <div className="min-h-screen" style={{ background: t.BG }}>
@@ -244,7 +227,7 @@ function ChoiceScreen({ property, slug, nightMode, onChoose }) {
               </button>
               <button onClick={() => onChoose('guest')}
                 className="flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-transform hover:scale-[1.02]"
-                style={{ borderColor: t.BORDER, background: nightMode ? 'rgba(255,255,255,0.04)' : SAND_BG }}>
+                style={{ borderColor: t.BORDER, background: 'var(--t-bg)' }}>
                 <Icon name="group" size={26} style={{ color: t.PRIMARY }} />
                 <span className="font-bold text-[15px]" style={{ color: t.TEXT }}>No, I'm a guest</span>
                 <span className="text-[11px]" style={{ color: t.MUTED }}>Staying with the primary booker</span>
@@ -262,7 +245,7 @@ function RulesChecklist({ rules, checked, toggleRule, allChecked, checkedCount, 
   return (
     <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: t.BORDER }}>
       <div className="px-5 py-3.5 flex items-center gap-2"
-        style={{ background: nightMode ? 'rgba(99,102,241,0.1)' : 'rgba(200,75,49,0.06)', borderBottom: `1px solid ${t.BORDER}` }}>
+        style={{ background: 'var(--t-primary-05)', borderBottom: `1px solid ${t.BORDER}` }}>
         <Icon name="gavel" size={15} style={{ color: t.PRIMARY }} />
         <span className="font-bold text-[14px]" style={{ color: t.TEXT }}>House Rules</span>
         <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full"
@@ -330,7 +313,7 @@ export default function V3CheckInPage() {
   const [minorCount, setMinorCount] = useState(0)
   const [coGuests, setCoGuests]     = useState([]) // [{ firstName, lastName, age, isMinor }]
 
-  const t = buildTheme(nightMode)
+  const t = buildTheme()
   const offerText = property.checkInOfferText || DEFAULT_CHECKIN_OFFER
 
   // Load house rules in the per-property curated order
@@ -404,6 +387,7 @@ export default function V3CheckInPage() {
     const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`
 
     const payload = {
+      tenantId:             getTenantId(),
       propertySlug:         slug,
       propertyName:         property.name,
       checkinRole:          isPrimary ? 'primary' : 'guest',
@@ -593,7 +577,7 @@ export default function V3CheckInPage() {
                       className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
                       style={{
                         border: `1.5px solid ${t.BORDER}`,
-                        background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+                        background: 'var(--t-bg)',
                         color: t.TEXT,
                       }}>
                       {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
@@ -607,7 +591,7 @@ export default function V3CheckInPage() {
                       className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
                       style={{
                         border: `1.5px solid ${t.BORDER}`,
-                        background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG,
+                        background: 'var(--t-bg)',
                         color: t.TEXT,
                       }}>
                       {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
@@ -620,7 +604,7 @@ export default function V3CheckInPage() {
                     {coGuests.map((g, i) => (
                       <div key={i} className="rounded-xl p-3 space-y-2" style={{
                         border: `1px solid ${t.BORDER}`,
-                        background: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(200,75,49,0.03)',
+                        background: 'var(--t-primary-05)',
                       }}>
                         <p className="text-[11px] font-bold" style={{ color: t.PRIMARY }}>
                           {g.isMinor
@@ -632,18 +616,18 @@ export default function V3CheckInPage() {
                             onChange={e => setCoGuest(i, 'firstName', e.target.value)}
                             placeholder="First name"
                             className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
-                            style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
                           <input type="text" value={g.lastName}
                             onChange={e => setCoGuest(i, 'lastName', e.target.value)}
                             placeholder="Last name"
                             className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
-                            style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
                         </div>
                         <input type="number" min={g.isMinor ? 0 : 18} max={g.isMinor ? 17 : 120} value={g.age}
                           onChange={e => setCoGuest(i, 'age', e.target.value)}
                           placeholder="Age"
                           className="w-24 px-3 py-2 rounded-lg text-[12px] outline-none"
-                          style={{ border: `1.5px solid ${t.BORDER}`, background: nightMode ? 'rgba(255,255,255,0.05)' : SAND_BG, color: t.TEXT }} />
+                          style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
                       </div>
                     ))}
                   </div>

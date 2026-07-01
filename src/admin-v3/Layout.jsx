@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { adminV3Store } from '../data/adminV3Store'
 import Icon from '../components/Icon'
+import { watchSession, claimSession, clearSession, resumeSession } from '../data/sessionStore'
+import { startInactivityTimer, stopInactivityTimer, resetInactivityTimer } from '../data/inactivityTimer'
+import { watchMaintenance, fmtTime, fmtCountdown } from '../data/maintenanceStore'
+import MaintenanceScreen from './MaintenanceScreen'
 
 function SidebarLink({ to, icon, label, end = false }) {
   return (
@@ -122,9 +126,25 @@ export default function AdminV3Layout() {
   const [publishedFlash, setPublishedFlash] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [ready, setReady] = useState(adminV3Store.isReady())
   const [hydrating, setHydrating] = useState(adminV3Store.isHydrating())
+  const [staleSession, setStaleSession] = useState(adminV3Store.isStaleSession())
   const dropdownRef = useRef(null)
+
+  // Session awareness
+  const [sessionEvent, setSessionEvent]   = useState(null)  // 'challenged'|'force-logout'|'taken-over'
+  const [sessionData, setSessionData]     = useState(null)
+  const [challengeCountdown, setChallengeCountdown] = useState(null)
+  const challengeTimerRef = useRef(null)
+
+  // Inactivity auto-logout
+  const [inactivityWarnSecs, setInactivityWarnSecs] = useState(null)
+  const inactivityTickRef = useRef(null)
+
+  // Maintenance mode — watched from Firestore; screen shown only to tenant admins
+  const [maintenanceState, setMaintenanceState] = useState({ status: 'none' })
+  const [maintenanceTick, setMaintenanceTick]   = useState(0)
 
   useEffect(() => {
     return adminV3Store.subscribe(() => {
@@ -133,6 +153,7 @@ export default function AdminV3Layout() {
       setChangeSummary(adminV3Store.getChangeSummary())
       setReady(adminV3Store.isReady())
       setHydrating(adminV3Store.isHydrating())
+      setStaleSession(adminV3Store.isStaleSession())
     })
   }, [])
 
@@ -147,14 +168,111 @@ export default function AdminV3Layout() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showDropdown])
 
+  // ── Maintenance watcher ────────────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = watchMaintenance((s) => setMaintenanceState(s))
+    // Tick every 30s to keep countdown strings fresh without extra Firestore reads
+    const tick = setInterval(() => setMaintenanceTick(t => t + 1), 30_000)
+    return () => { unsub(); clearInterval(tick) }
+  }, [])
+
+  // ── Session watcher ────────────────────────────────────────────────────────
+  useEffect(() => {
+    // On refresh, Firebase auth persists but initSession() wasn't called —
+    // resumeSession() restarts the heartbeat if we still own the session.
+    resumeSession()
+    const unsub = watchSession((data, event) => {
+      setSessionData(data)
+
+      if (event === 'force-logout' || event === 'taken-over') {
+        setSessionEvent(event)
+        stopInactivityTimer()
+        return
+      }
+
+      if (event === 'challenged') {
+        setSessionEvent('challenged')
+        // Compute initial countdown for the challenge banner
+        const lastSeen  = data.lastSeen || 0
+        const remaining = Math.max(0, Math.ceil((lastSeen + 30_000 - Date.now()) / 1000))
+        setChallengeCountdown(remaining)
+        return
+      }
+
+      // 'ok' — challenge resolved, clear banner
+      if (sessionEvent === 'challenged') {
+        setSessionEvent(null)
+        setChallengeCountdown(null)
+        if (challengeTimerRef.current) { clearInterval(challengeTimerRef.current); challengeTimerRef.current = null }
+      }
+    })
+    return unsub
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Countdown tick for the challenge banner (ticks down smoothly between Firestore updates)
+  useEffect(() => {
+    if (sessionEvent !== 'challenged' || challengeCountdown === null) {
+      if (challengeTimerRef.current) { clearInterval(challengeTimerRef.current); challengeTimerRef.current = null }
+      return
+    }
+    challengeTimerRef.current = setInterval(() => {
+      setChallengeCountdown(c => Math.max(0, c - 1))
+    }, 1000)
+    return () => { if (challengeTimerRef.current) clearInterval(challengeTimerRef.current) }
+  }, [sessionEvent, challengeCountdown === null]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Inactivity timer ───────────────────────────────────────────────────────
+  useEffect(() => {
+    startInactivityTimer({
+      onWarn: (remainingSecs) => {
+        if (remainingSecs === null) {
+          // User became active — dismiss warning
+          setInactivityWarnSecs(null)
+          if (inactivityTickRef.current) { clearInterval(inactivityTickRef.current); inactivityTickRef.current = null }
+          return
+        }
+        setInactivityWarnSecs(remainingSecs)
+        // Start a per-second tick for smooth countdown in the banner
+        if (inactivityTickRef.current) clearInterval(inactivityTickRef.current)
+        inactivityTickRef.current = setInterval(() => {
+          setInactivityWarnSecs(s => {
+            if (s <= 1) { clearInterval(inactivityTickRef.current); inactivityTickRef.current = null; return 0 }
+            return s - 1
+          })
+        }, 1000)
+      },
+      onLogout: () => {
+        setInactivityWarnSecs(null)
+        clearSession()
+        adminV3Store.logout()
+        navigate('/admin-v3?reason=inactivity')
+      },
+    })
+    return () => {
+      stopInactivityTimer()
+      if (inactivityTickRef.current) clearInterval(inactivityTickRef.current)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Conditional screens — placed AFTER all hooks (rules of hooks).
   if (adminV3Store.isLocked()) return <AccountLockedWall navigate={navigate} />
   if (hydrating) return <LoadingContent />
   if (!ready) return <LoadContentError navigate={navigate} />
 
   const handleLogout = () => {
+    clearSession()
+    stopInactivityTimer()
     adminV3Store.logout()
     navigate('/admin-v3')
+  }
+
+  const handleStaySignedIn = async () => {
+    resetInactivityTimer()
+    setInactivityWarnSecs(null)
+    if (inactivityTickRef.current) { clearInterval(inactivityTickRef.current); inactivityTickRef.current = null }
+    await claimSession()
+    setSessionEvent(null)
+    setChallengeCountdown(null)
   }
 
   const handlePublish = async () => {
@@ -165,6 +283,8 @@ export default function AdminV3Layout() {
     if (result === true) {
       setPublishedFlash(true)
       setTimeout(() => setPublishedFlash(false), 3000)
+    } else if (result === 'blocked-stale') {
+      setStaleSession(true)
     } else if (result === 'blocked-defaults') {
       window.alert('Publish blocked: this would replace your live guidebook content (including uploaded images) with empty/default content. This usually means this browser tab is out of date — please reload the page and try again.')
     } else if (result === 'blocked-error') {
@@ -175,14 +295,76 @@ export default function AdminV3Layout() {
   }
 
   const handleDiscard = () => {
-    if (window.confirm('Discard all unpublished changes? This cannot be undone.')) {
-      setShowDropdown(false)
-      adminV3Store.discardDraft()
-    }
+    setShowDropdown(false)
+    setConfirmDiscard(true)
+  }
+
+  const doDiscard = () => {
+    setConfirmDiscard(false)
+    adminV3Store.discardDraft()
+  }
+
+  // ── Full-screen overlays for session termination ────────────────────────────
+  if (sessionEvent === 'force-logout' || sessionEvent === 'taken-over') {
+    const isForced = sessionEvent === 'force-logout'
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-5">
+            <Icon name={isForced ? 'admin_panel_settings' : 'devices'} size={28} className="text-red-500" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-900 mb-2">
+            {isForced ? 'Signed out by administrator' : 'Signed in from another location'}
+          </h1>
+          <p className="text-sm text-slate-500 leading-relaxed mb-6">
+            {isForced
+              ? 'An administrator has signed you out of all sessions. Any unpublished changes have been lost. Please sign in again.'
+              : 'Your session was taken over by a new login. Please sign in again to continue editing.'}
+          </p>
+          <button
+            onClick={() => { adminV3Store.logout(); navigate('/admin-v3') }}
+            className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+            Sign In Again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Maintenance gate (active window) ─────────────────────────────────────
+  if (maintenanceState.status === 'active') {
+    return (
+      <MaintenanceScreen
+        scheduledEnd={maintenanceState.scheduledEnd}
+        message={maintenanceState.message}
+      />
+    )
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
+
+      {/* Discard confirmation modal */}
+      {confirmDiscard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
+            <h2 className="text-base font-bold text-slate-900 mb-2">Discard changes?</h2>
+            <p className="text-sm text-slate-500 mb-5">All unpublished changes will be lost. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDiscard(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={doDiscard}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/30 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
@@ -275,6 +457,83 @@ export default function AdminV3Layout() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Upcoming maintenance banner — shown up to 24h before start */}
+        {maintenanceState.status === 'upcoming' &&
+          maintenanceState.scheduledStart - Date.now() < 24 * 60 * 60 * 1000 && (
+          <div className="bg-amber-500 text-white px-4 py-2.5 flex items-center gap-3 flex-wrap justify-between z-40 text-sm">
+            <div className="flex items-center gap-2 font-semibold">
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>construction</span>
+              Maintenance scheduled — {fmtTime(maintenanceState.scheduledStart)} to {fmtTime(maintenanceState.scheduledEnd)}
+              <span className="font-normal text-amber-100 ml-1">
+                · starts in {fmtCountdown(maintenanceState.scheduledStart)}
+              </span>
+            </div>
+            <span className="text-amber-100 text-xs">
+              Save and publish your changes before this time.
+            </span>
+          </div>
+        )}
+
+        {/* Challenge banner — someone is trying to log in (Person A's view) */}
+        {sessionEvent === 'challenged' && (
+          <div className="bg-amber-600 text-white px-4 py-3 flex items-center gap-3 flex-wrap justify-between z-40">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Icon name="person_alert" size={16} />
+              Someone is trying to sign in to your account.
+              {challengeCountdown !== null && challengeCountdown > 0 && (
+                <span className="text-amber-100 font-normal ml-1">
+                  Your session ends in {challengeCountdown}s if you're inactive.
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <p className="text-xs text-amber-100 hidden sm:block">Any unpublished changes will be lost if you're signed out.</p>
+              <button
+                onClick={handleStaySignedIn}
+                className="px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-amber-700 hover:bg-amber-50 transition-colors flex-shrink-0">
+                Stay Signed In
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-amber-100 hover:text-white border border-amber-400 hover:border-amber-200 transition-colors flex-shrink-0">
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Inactivity warning banner */}
+        {inactivityWarnSecs !== null && sessionEvent !== 'challenged' && (
+          <div className="bg-slate-800 text-white px-4 py-3 flex items-center gap-3 flex-wrap justify-between z-40">
+            <div className="flex items-center gap-2 text-sm">
+              <Icon name="timer" size={16} className="text-slate-300" />
+              <span>
+                <span className="font-semibold">Inactive for a while.</span>
+                {' '}You'll be signed out in{' '}
+                <span className="font-bold text-amber-400">
+                  {inactivityWarnSecs >= 60
+                    ? `${Math.ceil(inactivityWarnSecs / 60)} min`
+                    : `${inactivityWarnSecs}s`}
+                </span>
+                . Any unpublished changes will be lost.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => { resetInactivityTimer(); setInactivityWarnSecs(null); if (inactivityTickRef.current) { clearInterval(inactivityTickRef.current); inactivityTickRef.current = null } }}
+                className="px-4 py-1.5 rounded-lg text-sm font-bold bg-orange-500 hover:bg-orange-400 transition-colors">
+                Stay Signed In
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-300 hover:text-white border border-slate-600 hover:border-slate-400 transition-colors">
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
           <div className="h-14 flex items-center gap-3 px-4 md:px-6">
@@ -284,7 +543,19 @@ export default function AdminV3Layout() {
 
             <div className="flex-1" />
 
-            {publishedFlash ? (
+            {staleSession ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                  <Icon name="sync_problem" size={14} />
+                  Content updated elsewhere — reload to continue
+                </div>
+                <button onClick={async () => { await adminV3Store.syncRemoteAt() }}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                  Reload
+                </button>
+              </div>
+            ) : publishedFlash ? (
               <div className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg">
                 <Icon name="check_circle" size={14} /> Published successfully
               </div>
@@ -339,13 +610,13 @@ export default function AdminV3Layout() {
                 {/* Publish — always visible; grey = no changes but can force-sync */}
                 <button
                   onClick={handlePublish}
-                  disabled={publishing}
+                  disabled={publishing || staleSession}
                   className="flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all"
                   style={{
-                    background: hasChanges ? 'linear-gradient(135deg, #C84B31, #EA580C)' : '#CBD5E1',
-                    color: hasChanges ? 'white' : '#64748B',
-                    cursor: publishing ? 'not-allowed' : 'pointer',
-                    opacity: publishing ? 0.6 : 1,
+                    background: (hasChanges && !staleSession) ? 'linear-gradient(135deg, #C84B31, #EA580C)' : '#CBD5E1',
+                    color: (hasChanges && !staleSession) ? 'white' : '#64748B',
+                    cursor: (publishing || staleSession) ? 'not-allowed' : 'pointer',
+                    opacity: (publishing || staleSession) ? 0.6 : 1,
                   }}
                 >
                   <Icon name="publish" size={13} />

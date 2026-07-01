@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { superAdminSignOut } from '../data/superAdminAuth'
 import { auth } from '../firebase'
+import Icon from '../components/Icon'
 
 function SidebarLink({ to, label, icon, end = false }) {
   return (
@@ -15,7 +16,7 @@ function SidebarLink({ to, label, icon, end = false }) {
         }`
       }
     >
-      <span className="text-base leading-none" style={{ fontFamily: 'Material Icons', fontSize: 16 }}>{icon}</span>
+      <Icon name={icon} size={16} />
       <span>{label}</span>
     </NavLink>
   )
@@ -32,9 +33,7 @@ export default function SuperAdminLayout() {
 
   return (
     <div className="min-h-screen flex" style={{ background: '#0F172A' }}>
-      {/* Sidebar */}
       <aside className="w-60 flex-shrink-0 flex flex-col border-r" style={{ background: '#1E293B', borderColor: '#334155' }}>
-        {/* Brand */}
         <div className="px-5 py-4 border-b" style={{ borderColor: '#334155' }}>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-indigo-600">
@@ -50,13 +49,12 @@ export default function SuperAdminLayout() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5">
           <SidebarLink to="/super-admin/dashboard" icon="dashboard" label="Tenants" end />
           <SidebarLink to="/super-admin/create-tenant" icon="add_business" label="Add Tenant" />
+          <SidebarLink to="/super-admin/maintenance" icon="construction" label="Maintenance" />
         </nav>
 
-        {/* Footer */}
         <div className="p-3 border-t space-y-1" style={{ borderColor: '#334155' }}>
           <div className="px-3 py-2">
             <p className="text-[10px] text-slate-500 truncate">{currentEmail}</p>
@@ -65,13 +63,12 @@ export default function SuperAdminLayout() {
             onClick={handleSignOut}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
           >
-            <span className="text-base leading-none" style={{ fontFamily: 'Material Icons', fontSize: 16 }}>logout</span>
-            Sign Out
+            <Icon name="logout" size={16} />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto" style={{ background: '#0F172A' }}>
         <Outlet />
       </main>

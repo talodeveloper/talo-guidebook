@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { db } from '../../firebase'
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore'
 import Icon from '../../components/Icon'
+import { getTenantId } from '../../data/tenant'
 
 const PROPERTY_LABELS = {
   'reynard-way':  'Reynard Way',
@@ -24,7 +25,10 @@ export default function Checkouts() {
       const unsub = onSnapshot(
         q,
         (snap) => {
-          setCheckouts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+          const tid = getTenantId()
+          setCheckouts(snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(r => r.tenantId === tid || (!r.tenantId && tid === 'talo')))
           setLoading(false)
         },
         (err) => { console.error(err); setLoading(false) }
@@ -37,8 +41,11 @@ export default function Checkouts() {
   useEffect(() => {
     try {
       const q = query(collection(db, 'v2_checkins'), orderBy('submittedAt', 'desc'))
+      const tid = getTenantId()
       return onSnapshot(q, (snap) => {
-        setCheckins(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setCheckins(snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(r => r.tenantId === tid || (!r.tenantId && tid === 'talo')))
       })
     } catch {}
   }, [])

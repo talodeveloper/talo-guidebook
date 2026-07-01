@@ -20,7 +20,7 @@
 import { db } from '../firebase'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { contentStore } from './contentStore'
-import { fsPaths } from './tenant'
+import { fsPaths, getTenantId, DEFAULT_TENANT_ID } from './tenant'
 
 // Guest-facing cache, populated from Firestore. Deliberately a DIFFERENT key
 // from the admin's `talo_admin_v3_live` — the admin owns that one and we must
@@ -37,10 +37,13 @@ let _faqListeners  = []
 function notifyProp() { _propListeners.forEach(fn => fn(_propertyOverrides)) }
 function notifyFaq()  { _faqListeners.forEach(fn => fn(_faqOverrides)) }
 
-// ─── Legacy fallback listeners (only attached if the tenant doc is absent) ──
+// ─── Legacy fallback listeners (only attached for the default TALO tenant) ──
+// Non-talo tenants with no published content intentionally show empty sections,
+// not TALO's sample data.
 let _legacyAttached = false
 function attachLegacyListeners() {
   if (_legacyAttached) return
+  if (getTenantId() !== DEFAULT_TENANT_ID) return  // gate: talo only
   _legacyAttached = true
   try {
     onSnapshot(doc(db, ...fsPaths.contentBlocks()), (snap) => {

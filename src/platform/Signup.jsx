@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { httpsCallable } from 'firebase/functions'
@@ -24,8 +24,23 @@ export default function Signup() {
   const [form, setForm] = useState({ company: '', email: '', password: '', slug: '', plan: 'starter' })
   const [slugEdited, setSlugEdited] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState(0)
+  const stepTimers = useRef([])
   const [error, setError] = useState('')
   const [done, setDone] = useState(null) // { slug }
+
+  useEffect(() => {
+    if (busy) {
+      setStep(0)
+      stepTimers.current.push(setTimeout(() => setStep(1), 1400))
+      stepTimers.current.push(setTimeout(() => setStep(2), 3000))
+    } else {
+      stepTimers.current.forEach(clearTimeout)
+      stepTimers.current = []
+      setStep(0)
+    }
+    return () => { stepTimers.current.forEach(clearTimeout); stepTimers.current = [] }
+  }, [busy])
 
   function set(field, value) {
     setForm(f => {
@@ -168,11 +183,48 @@ export default function Signup() {
 
             {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
-            <button type="submit" disabled={busy}
-              className="w-full py-3 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: BRAND }}>
-              {busy ? 'Creating your workspace…' : 'Create workspace'}
-            </button>
+            {busy ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                {[
+                  'Creating your account',
+                  'Setting up your workspace…',
+                  'Almost ready…',
+                ].map((label, i) => {
+                  const done = i < step
+                  const active = i === step
+                  return (
+                    <div key={i} className={`flex items-center gap-3 py-1.5 transition-opacity duration-300 ${i > step ? 'opacity-30' : 'opacity-100'}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                        done ? 'bg-green-500' : active ? 'bg-orange-500' : 'bg-slate-200'
+                      }`}>
+                        {done ? (
+                          <span className="material-symbols-outlined text-white" style={{ fontSize: 13 }}>check</span>
+                        ) : active ? (
+                          <span className="block w-2 h-2 rounded-full bg-white animate-pulse" />
+                        ) : (
+                          <span className="block w-2 h-2 rounded-full bg-slate-400" />
+                        )}
+                      </div>
+                      <span className={`text-sm transition-colors duration-300 ${active ? 'font-semibold text-slate-900' : done ? 'text-slate-400' : 'text-slate-400'}`}>
+                        {label}
+                      </span>
+                    </div>
+                  )
+                })}
+                <div className="mt-3 h-1 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${[15, 55, 85][step]}%`, background: BRAND }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button type="submit"
+                className="w-full py-3 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                style={{ background: BRAND }}>
+                Create workspace
+              </button>
+            )}
           </form>
         </div>
 

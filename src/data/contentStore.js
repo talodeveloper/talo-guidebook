@@ -5,6 +5,8 @@
 // Within a section: shared blocks render before property-specific blocks.
 // order field controls sort within each type group.
 
+import { getTenantId, DEFAULT_TENANT_ID } from './tenant'
+
 let _blocks = [
 
   // ─── WELCOME ──────────────────────────────────────────────────────────────
@@ -936,10 +938,20 @@ let _blocks = [
   // ─── TRANSPORTATION ───────────────────────────────────────────────────────
 
   {
-    id: 'getting-around-shared',
+    id: 'getting-around-reynard',
     sectionKey: 'transport',
-    type: 'shared',
-    propertySlug: null,
+    type: 'property',
+    propertySlug: 'reynard-way',
+    title: 'Getting Around San Diego',
+    body: `<p><strong>On Foot:</strong> Both properties are in walkable neighborhoods. Little Italy, Starbucks, and local coffee shops are within 15–30 minutes on foot. Mission Hills restaurants, bars, and cafés are within a 5–10 minute walk.</p><p><strong>Rideshare:</strong> Uber and Lyft are widely available throughout San Diego and are often the easiest option — especially for beach areas, the Gaslamp Quarter, and Little Italy where parking can be challenging.</p><p><strong>Bus & Trolley:</strong> Multiple MTS bus routes stop nearby. Check <strong>sdmts.com</strong> for maps and schedules. The Green Line Trolley connects to downtown and Mission Valley.</p><p><strong>By Car:</strong> Centrally located — Balboa Park is 5 min, downtown is 10 min, beaches are 15–20 min. Note that parking in Mission Bay, Gaslamp, and Little Italy can be tight on weekends; Uber/Lyft is recommended for those areas.</p>`,
+    images: [],
+    order: 1,
+  },
+  {
+    id: 'getting-around-hawk',
+    sectionKey: 'transport',
+    type: 'property',
+    propertySlug: 'hawk-street',
     title: 'Getting Around San Diego',
     body: `<p><strong>On Foot:</strong> Both properties are in walkable neighborhoods. Little Italy, Starbucks, and local coffee shops are within 15–30 minutes on foot. Mission Hills restaurants, bars, and cafés are within a 5–10 minute walk.</p><p><strong>Rideshare:</strong> Uber and Lyft are widely available throughout San Diego and are often the easiest option — especially for beach areas, the Gaslamp Quarter, and Little Italy where parking can be challenging.</p><p><strong>Bus & Trolley:</strong> Multiple MTS bus routes stop nearby. Check <strong>sdmts.com</strong> for maps and schedules. The Green Line Trolley connects to downtown and Mission Valley.</p><p><strong>By Car:</strong> Centrally located — Balboa Park is 5 min, downtown is 10 min, beaches are 15–20 min. Note that parking in Mission Bay, Gaslamp, and Little Italy can be tight on weekends; Uber/Lyft is recommended for those areas.</p>`,
     images: [],
@@ -949,10 +961,20 @@ let _blocks = [
   // ─── CHECKOUT ─────────────────────────────────────────────────────────────
 
   {
-    id: 'checkout-instructions',
+    id: 'checkout-instructions-reynard',
     sectionKey: 'checkout',
-    type: 'shared',
-    propertySlug: null,
+    type: 'property',
+    propertySlug: 'reynard-way',
+    title: 'Before You Go',
+    body: `<ol><li>Strip the beds — leave all used linens on the floor in the bedroom.</li><li>Wash all dishes and return them to the cabinets.</li><li>Take all trash to the bins outside.</li><li>Empty the refrigerator of any perishable items you brought.</li><li>Turn off all lights, fans, and electronics.</li><li>Lock all doors and windows before leaving.</li><li>Send your host a quick message to let them know you have checked out.</li></ol>`,
+    images: [],
+    order: 1,
+  },
+  {
+    id: 'checkout-instructions-hawk',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'hawk-street',
     title: 'Before You Go',
     body: `<ol><li>Strip the beds — leave all used linens on the floor in the bedroom.</li><li>Wash all dishes and return them to the cabinets.</li><li>Take all trash to the bins outside.</li><li>Empty the refrigerator of any perishable items you brought.</li><li>Turn off all lights, fans, and electronics.</li><li>Lock all doors and windows before leaving.</li><li>Send your host a quick message to let them know you have checked out.</li></ol>`,
     images: [],
@@ -979,10 +1001,20 @@ let _blocks = [
     order: 1,
   },
   {
-    id: 'checkout-legal',
+    id: 'checkout-legal-reynard',
     sectionKey: 'checkout',
-    type: 'shared',
-    propertySlug: null,
+    type: 'property',
+    propertySlug: 'reynard-way',
+    title: 'Legal Notice',
+    body: `<p>TALO Rentals operates under a valid short-term rental permit issued by the City of San Diego. Guests agree to comply with all local ordinances regarding noise, occupancy, and parking. The property is located in a residential neighborhood — please be respectful of neighbors at all times.</p><p>TALO Rentals is not liable for personal injury, theft, or property damage resulting from misuse of the property or its amenities. Guests assume full responsibility for their own safety and the safety of their group.</p>`,
+    images: [],
+    order: 2,
+  },
+  {
+    id: 'checkout-legal-hawk',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'hawk-street',
     title: 'Legal Notice',
     body: `<p>TALO Rentals operates under a valid short-term rental permit issued by the City of San Diego. Guests agree to comply with all local ordinances regarding noise, occupancy, and parking. The property is located in a residential neighborhood — please be respectful of neighbors at all times.</p><p>TALO Rentals is not liable for personal injury, theft, or property damage resulting from misuse of the property or its amenities. Guests assume full responsibility for their own safety and the safety of their group.</p>`,
     images: [],
@@ -1516,6 +1548,26 @@ let _blocks = [
     images: [],
     order: 2,
   },
+  {
+    id: 'checkout-instructions-jackson',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'jackson-st',
+    title: 'Before You Go',
+    body: `<ol><li>Strip the beds — leave all used linens on the floor in the bedroom.</li><li>Wash all dishes and return them to the cabinets.</li><li>Take all trash to the bins outside.</li><li>Empty the refrigerator of any perishable items you brought.</li><li>Turn off all lights, fans, and electronics.</li><li>Lock all doors and windows before leaving.</li><li>Send your host a quick message to let them know you have checked out.</li></ol>`,
+    images: [],
+    order: 3,
+  },
+  {
+    id: 'checkout-legal-jackson',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'jackson-st',
+    title: 'Legal Notice',
+    body: `<p>TALO Rentals operates under a valid short-term rental permit issued by the City of San Diego. Guests agree to comply with all local ordinances regarding noise, occupancy, and parking. The property is located in a residential neighborhood — please be respectful of neighbors at all times.</p><p>TALO Rentals is not liable for personal injury, theft, or property damage resulting from misuse of the property or its amenities. Guests assume full responsibility for their own safety and the safety of their group.</p>`,
+    images: [],
+    order: 4,
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // VISTA POINTE — 3792 Vista Pointe, Bonita, CA 91902
@@ -2033,6 +2085,26 @@ let _blocks = [
     images: [],
     order: 2,
   },
+  {
+    id: 'checkout-instructions-vista',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'vista-pointe',
+    title: 'Before You Go',
+    body: `<ol><li>Strip the beds — leave all used linens on the floor in the bedroom.</li><li>Wash all dishes and return them to the cabinets.</li><li>Take all trash to the bins outside.</li><li>Empty the refrigerator of any perishable items you brought.</li><li>Turn off all lights, fans, and electronics.</li><li>Lock all doors and windows before leaving.</li><li>Send your host a quick message to let them know you have checked out.</li></ol>`,
+    images: [],
+    order: 3,
+  },
+  {
+    id: 'checkout-legal-vista',
+    sectionKey: 'checkout',
+    type: 'property',
+    propertySlug: 'vista-pointe',
+    title: 'Legal Notice',
+    body: `<p>TALO Rentals operates under a valid short-term rental permit issued by the City of San Diego. Guests agree to comply with all local ordinances regarding noise, occupancy, and parking. The property is located in a residential neighborhood — please be respectful of neighbors at all times.</p><p>TALO Rentals is not liable for personal injury, theft, or property damage resulting from misuse of the property or its amenities. Guests assume full responsibility for their own safety and the safety of their group.</p>`,
+    images: [],
+    order: 4,
+  },
 ]
 
 const STORAGE_KEY = 'talo_content_blocks_v8'
@@ -2127,6 +2199,7 @@ function _migrateHawkBedroomImages(blocks) {
 
 // Priority 1: admin v2 published data (highest authority — admin's own browser)
 const _adminV2Raw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_admin_v2_live') : null
+let _usedLiveData = false
 if (_adminV2Raw) {
   try {
     const _adminV2Live = JSON.parse(_adminV2Raw)
@@ -2134,26 +2207,27 @@ if (_adminV2Raw) {
       _blocks = _migrateHawkBedroomImages(_adminV2Live.blocks)
       _adminV2Live.blocks = _blocks
       try { localStorage.setItem('talo_admin_v2_live', JSON.stringify(_adminV2Live)) } catch {}
+      _usedLiveData = true
     }
   } catch {}
-} else {
+}
+if (!_usedLiveData) {
   // Priority 2: guest cache populated by firebaseSync from Firestore on prior
   // visits. This is the REAL published content, so returning guests render the
   // correct images on first paint instead of flashing the built-in defaults
   // before the live snapshot arrives.
-  let _usedGuestCache = false
   const _guestRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('talo_v3_guest_cache') : null
   if (_guestRaw) {
     try {
       const _guest = JSON.parse(_guestRaw)
       if (Array.isArray(_guest?.blocks) && _guest.blocks.length > 0) {
         _blocks = _migrateHawkBedroomImages(_guest.blocks)
-        _usedGuestCache = true
+        _usedLiveData = true
       }
     } catch {}
   }
-  // Priority 3: legacy admin v1 / persisted defaults
-  if (!_usedGuestCache) {
+  // Priority 3: legacy admin v1 / persisted defaults (talo only)
+  if (!_usedLiveData) {
     const _savedRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
     if (_savedRaw) {
       try { _blocks = _migrateHawkBedroomImages(JSON.parse(_savedRaw)) } catch {}
@@ -2162,6 +2236,11 @@ if (_adminV2Raw) {
 }
 // Always apply migration to in-memory defaults too, so a fresh install is correct.
 _blocks = _migrateHawkBedroomImages(_blocks)
+// For non-talo tenants with no published content, use empty sections rather
+// than leaking TALO's hardcoded sample data to their guests.
+if (!_usedLiveData && getTenantId() !== DEFAULT_TENANT_ID) {
+  _blocks = []
+}
 
 function _persist() {
   try {
