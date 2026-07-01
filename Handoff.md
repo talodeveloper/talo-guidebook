@@ -381,25 +381,15 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 
 ---
 
+### ✅ Already built (confirmed Jul 1 2026)
+
+**1. Progress bar on signup** — ✅ DONE (animated steps during Cloud Function call)
+**2. New-tenant guest guidebook read-path leak** — ✅ DONE (gated legacy fallback to talo only)
+**3. Delete Tenant in super-admin** — ✅ DONE (typed slug confirmation + credential re-verify + deletes tenants/{id} + slugs/{slug})
+
 ### 🔲 Active pending tasks (in priority order)
 
-**1. Progress bar on signup** ← FIRST THING TO BUILD
-- User explicitly asked for this: "showing some kind of progress bar would be good here" (the Cloud Function call takes 2-3 seconds).
-- File: `src/platform/Signup.jsx`. Current state: `busy` flag shows "Creating your workspace…" text + disabled button. No visual progress.
-- Add animated steps during `busy`: e.g. step 1 "Creating your account" → step 2 "Setting up your workspace…" → step 3 "Almost ready…" with a progress bar or stepper animation. Transition between steps with a `useEffect` / `setInterval` while `busy === true`.
-
-**2. New-tenant guest guidebook read-path leak**
-- A brand-new tenant's guest guidebook (`/{slug}`) still shows TALO's sample content (the 36 seed activities, default blocks) because: (a) `firebaseSync.js` falls back to `v2_content/blocks` when tenant Firestore is empty; (b) `contentStore.js` defaults to built-in TALO content.
-- Fix: gate the `firebaseSync` legacy fallback (reading `v2_content/*`) to `getTenantId() === DEFAULT_TENANT_ID` only. Gate the `contentStore` hardcoded defaults similarly. Non-talo tenants with no published data should show empty guidebook sections.
-- Files: `src/data/firebaseSync.js`, `src/data/contentStore.js`.
-
-**3. Delete Tenant in super-admin**
-- User wants to delete test tenants like `testrentals` cleanly.
-- UI: add a "Delete Tenant" button in `src/super-admin/pages/TenantDetail.jsx` — Danger Zone, below Suspend. Require same credential re-verification as deactivation/suspension.
-- Backend: deletes `tenants/{tenantId}` + `slugs/{slug}` from Firestore. Optionally disables the Firebase Auth user (`admin.auth().updateUser(uid, { disabled: true })`). NOTE: can't truly delete Auth users from the client — super-admin panel talks to Firestore only (no Admin SDK from browser). Add a Cloud Function `deleteTenant` or handle Auth user deletion via a script / Firebase Console until a Cloud Function exists.
-- Data: never auto-delete — show a warning that tenant data will be wiped. Require typed confirmation ("I understand this is permanent").
-
-**4. Slug-change feature (`talo → sd`)**
+**1. Slug-change feature (`talo → sd`)**
 - User wants to rename `talo.talo.llc` to `sd.talo.llc`. Currently impossible because `tenantId === slug` — every Firestore path, Storage path, and Auth claim references the slug as the stable ID.
 - `slugs/{slug} → { tenantId }` lookup table already exists in Firestore, but the frontend reads the subdomain directly as the tenantId.
 - Full fix requires: (1) decouple tenantId from slug (tenantId becomes a stable UUID or internal id, slug is a mutable label); (2) Cloudflare Worker resolves slug → tenantId via Firestore before serving; (3) all data paths use tenantId, not slug. This is a non-trivial schema migration — design carefully before starting.
@@ -903,30 +893,7 @@ Host routing: getHostMode() in src/data/tenant.js returns 'apex'|'tenant'|'legac
 
 == ACTIVE PENDING TASKS (in priority order) ==
 
-1. PROGRESS BAR ON SIGNUP — src/platform/Signup.jsx
-   The signup form calls createUserWithEmailAndPassword then provisionTenant Cloud Function (2-3s).
-   Currently busy state just shows "Creating your workspace…" text + disabled button.
-   User asked for a visual progress bar/stepper: step 1 "Creating your account" → step 2 "Setting up your workspace…" → step 3 "Almost ready…"
-   Add animated progress indicator during the busy state. Does NOT require any backend changes.
-
-2. NEW-TENANT GUEST GUIDEBOOK READ-LEAK — src/data/firebaseSync.js + src/data/contentStore.js
-   A brand-new tenant's guest guidebook (/{slug}) still shows TALO's sample content because:
-   (a) firebaseSync.js falls back to reading v2_content/blocks (TALO's legacy path) when tenant Firestore is empty
-   (b) contentStore.js defaults to hardcoded TALO seed blocks
-   Fix: gate both of these to getTenantId() === DEFAULT_TENANT_ID ('talo') only. New tenants with no
-   published content should render empty guidebook sections, not TALO's data.
-
-3. DELETE TENANT IN SUPER-ADMIN — src/super-admin/pages/TenantDetail.jsx
-   User wants to delete test tenants (testrentals, etc). 
-   Add "Delete Tenant" button in the Danger Zone (below Suspend), with:
-   - Typed confirmation ("type the tenant slug to confirm")
-   - Credential re-verification (same modal as Deactivate/Suspend)
-   - Deletes tenants/{tenantId} + slugs/{slug} from Firestore
-   - Optionally disables the Firebase Auth user (note: browser can't call Admin SDK — either add a
-     deleteTenant Cloud Function, or leave Auth user in place and just delete Firestore docs)
-   - Data warning: "This is permanent and cannot be undone. All guidebook content will be lost."
-
-4. SLUG-CHANGE FEATURE (talo → sd) — complex, needs design
+1. SLUG-CHANGE FEATURE (talo → sd) — complex, needs design
    User wants to rename talo.talo.llc to sd.talo.llc.
    Currently impossible: tenantId === slug, used as primary key everywhere (Firestore paths, Storage paths, Auth claims).
    slugs/{slug} → { tenantId } lookup table already exists but getTenantId() reads subdomain directly.
