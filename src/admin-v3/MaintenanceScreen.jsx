@@ -25,7 +25,7 @@ const TILES = [
   { url: 'https://images.unsplash.com/photo-1518548419970-58e3b4079ab2?auto=format&fit=crop&w=400&q=75', label: 'Tulum, Mexico' },
 ]
 
-export default function MaintenanceScreen({ scheduledEnd, message }) {
+export default function MaintenanceScreen({ scheduledEnd, message, mustReLogin = false, onReLogin }) {
   const [tick, setTick] = useState(0)
 
   // Tick every minute to update countdown
@@ -134,6 +134,23 @@ export default function MaintenanceScreen({ scheduledEnd, message }) {
               {remaining && (
                 <p className="text-sm text-white/60 mt-1">in approximately {remaining}</p>
               )}
+            </div>
+          )}
+
+          {/* Signed-out notice + re-login (scheduled maintenance only) */}
+          {mustReLogin && (
+            <div className="mb-5">
+              <p className="text-[12px] text-white/70 leading-relaxed mb-3">
+                You've been signed out and any unpublished changes were discarded, as noted before the window began.
+                Please sign in again to continue.
+              </p>
+              <button
+                onClick={onReLogin}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}
+              >
+                Sign in again
+              </button>
             </div>
           )}
 

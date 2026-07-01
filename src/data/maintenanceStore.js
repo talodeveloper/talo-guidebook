@@ -20,15 +20,15 @@ export function watchMaintenance(callback) {
   )
 }
 
-/** Super-admin: schedule a maintenance window */
+/** Super-admin: schedule a maintenance window (advance notice → tenants are warned, then force-logged-out) */
 export async function scheduleMaintenance({ scheduledStart, scheduledEnd, message = '' }) {
-  await setDoc(ref(), { scheduledStart, scheduledEnd, message, createdAt: Date.now() })
+  await setDoc(ref(), { scheduledStart, scheduledEnd, message, mode: 'scheduled', createdAt: Date.now() })
 }
 
-/** Super-admin: start maintenance immediately for N minutes */
+/** Super-admin: start maintenance immediately for N minutes (no advance notice → tenants keep their draft, auto-return) */
 export async function startMaintenanceNow(durationMinutes) {
   const now = Date.now()
-  await setDoc(ref(), { scheduledStart: now, scheduledEnd: now + durationMinutes * 60_000, message: '', createdAt: now })
+  await setDoc(ref(), { scheduledStart: now, scheduledEnd: now + durationMinutes * 60_000, message: '', mode: 'now', createdAt: now })
 }
 
 /** Super-admin: cancel/end maintenance */

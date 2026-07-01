@@ -4,7 +4,7 @@ import { adminV3Store } from '../data/adminV3Store'
 import Icon from '../components/Icon'
 import { watchSession, claimSession, clearSession, resumeSession } from '../data/sessionStore'
 import { startInactivityTimer, stopInactivityTimer, resetInactivityTimer } from '../data/inactivityTimer'
-import { watchMaintenance, fmtTime, fmtCountdown } from '../data/maintenanceStore'
+import { watchMaintenance, getMaintenanceState, fmtTime, fmtCountdown } from '../data/maintenanceStore'
 import MaintenanceScreen from './MaintenanceScreen'
 
 function SidebarLink({ to, icon, label, end = false }) {
@@ -144,7 +144,10 @@ export default function AdminV3Layout() {
 
   // Maintenance mode — watched from Firestore; screen shown only to tenant admins
   const [maintenanceState, setMaintenanceState] = useState({ status: 'none' })
-  const [maintenanceTick, setMaintenanceTick]   = useState(0)
+  const maintenanceRawRef = useRef(null)
+  // Set once when a *scheduled* window activates: draft discarded + session ended,
+  // keeps the maintenance screen up until the admin explicitly signs in again.
+  const [forcedOut, setForcedOut] = useState(false)
 
   useEffect(() => {
     return adminV3Store.subscribe(() => {
@@ -169,12 +172,41 @@ export default function AdminV3Layout() {
   }, [showDropdown])
 
   // ── Maintenance watcher ────────────────────────────────────────────────────
+  // Firestore only fires a snapshot when the document changes. A *scheduled*
+  // window's start time passing is NOT a document change — it's just the wall
+  // clock moving — so without this local tick an open tab would stay on
+  // 'upcoming' forever and never lock out. We recompute the derived status from
+  // the raw stored data every 10s so upcoming→active (and active→ended) flips
+  // happen on their own, no refresh required.
   useEffect(() => {
-    const unsub = watchMaintenance((s) => setMaintenanceState(s))
-    // Tick every 30s to keep countdown strings fresh without extra Firestore reads
-    const tick = setInterval(() => setMaintenanceTick(t => t + 1), 30_000)
+    const unsub = watchMaintenance((s, raw) => {
+      maintenanceRawRef.current = raw
+      setMaintenanceState(s)
+    })
+    const tick = setInterval(() => {
+      setMaintenanceState(getMaintenanceState(maintenanceRawRef.current))
+    }, 10_000)
     return () => { unsub(); clearInterval(tick) }
   }, [])
+
+  // ── Scheduled-maintenance force-logout ──────────────────────────────────────
+  // Scheduled windows give tenants advance notice (banner + message telling them
+  // to publish). When one activates we discard the unpublished draft and end the
+  // session, then keep the maintenance screen up until they sign in again.
+  // Immediate ("Start now") windows do NOT do this — they preserve the draft and
+  // auto-return the admin when the window ends.
+  useEffect(() => {
+    if (
+      maintenanceState.status === 'active' &&
+      maintenanceState.mode !== 'now' &&
+      !forcedOut
+    ) {
+      setForcedOut(true)
+      try { adminV3Store.discardDraft() } catch {}
+      clearSession()
+      stopInactivityTimer()
+    }
+  }, [maintenanceState.status, maintenanceState.mode, forcedOut])
 
   // ── Session watcher ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -332,12 +364,16 @@ export default function AdminV3Layout() {
     )
   }
 
-  // ── Maintenance gate (active window) ─────────────────────────────────────
-  if (maintenanceState.status === 'active') {
+  // ── Maintenance gate ─────────────────────────────────────────────────────
+  // Active window → show the screen. A scheduled window additionally keeps the
+  // screen up (forcedOut) even after it ends, until the admin signs in again.
+  if (maintenanceState.status === 'active' || forcedOut) {
     return (
       <MaintenanceScreen
         scheduledEnd={maintenanceState.scheduledEnd}
         message={maintenanceState.message}
+        mustReLogin={forcedOut}
+        onReLogin={handleLogout}
       />
     )
   }
@@ -470,7 +506,7 @@ export default function AdminV3Layout() {
               </span>
             </div>
             <span className="text-amber-100 text-xs">
-              Save and publish your changes before this time.
+              Publish your changes before this time — unpublished edits are discarded and you'll be signed out when it begins.
             </span>
           </div>
         )}
