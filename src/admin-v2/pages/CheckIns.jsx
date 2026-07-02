@@ -4,6 +4,7 @@ import { db } from '../../firebase'
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, addDoc } from 'firebase/firestore'
 import Icon from '../../components/Icon'
 import { getTenantId } from '../../data/tenant'
+import { buildGuestGroups } from '../../data/guestRoster'
 
 const PROPERTY_LABELS = {
   'reynard-way':  'Reynard Way',
@@ -59,62 +60,29 @@ export default function CheckIns() {
     } catch {}
   }, [])
 
-  // ── Stay-aware checkout matching ──────────────────────────────────────────
-  // A group's "latest check-in time" must be AFTER any matching checkout
-  // for that booker+property to be considered active again. Prevents a
-  // brand-new booking with the same primary booker name (e.g. a year later)
-  // from being auto-marked as checked-out by an old checkout record.
-  const isCheckedOut = (primaryName, propertySlug, items) => {
-    const key = primaryName?.trim().toLowerCase()
-    const matching = checkouts.filter(
-      c => c.primaryGuestName?.trim().toLowerCase() === key
-        && c.propertySlug === propertySlug
-    )
-    if (matching.length === 0) return false
+  // ── Merged booking groups ─────────────────────────────────────────────────
+  // The roster engine unifies each primary booker's own record, the co-guests
+  // they listed, and any guests who signed in themselves (matched by name) into
+  // one people list per booking. Stay-aware active/checked-out detection lives
+  // inside the engine.
+  const allGroups = buildGuestGroups(submissions, checkouts)
+  const propGroups = filterSlug === 'all'
+    ? allGroups
+    : allGroups.filter(g => g.propertySlug === filterSlug)
+  const activeGroups    = propGroups.filter(g => g.active)
+  const checkedOutCount = propGroups.filter(g => !g.active).length
 
-    // Most recent check-in time for this group
-    const latestCheckinTs = Math.max(...items.map(i => new Date(i.submittedAt || 0).getTime()))
-    // Most recent checkout for this primary+property
-    const latestCheckoutTs = Math.max(...matching.map(c => new Date(c.checkedOutAt || 0).getTime()))
-
-    // Only treat as checked out if the checkout happened AFTER the latest check-in
-    return latestCheckoutTs > latestCheckinTs
-  }
-
-  // Filter by property
-  const filtered = filterSlug === 'all'
-    ? submissions
-    : submissions.filter(s => s.propertySlug === filterSlug)
-
-  // Group by primary guest name + property — never collapse same-named bookers
-  // across different properties (e.g. two "Joe"s at Jackson and Hawk should
-  // remain two distinct groups even in the "All Properties" view).
-  const groupKey = (s) => `${(s.primaryGuestName || 'Unknown').trim()}|${s.propertySlug || ''}`
-  const grouped = filtered.reduce((acc, s) => {
-    const key = groupKey(s)
-    if (!acc[key]) acc[key] = []
-    acc[key].push(s)
-    return acc
-  }, {})
-
-  // Separate active (not checked out) from checked-out groups
-  const activeGroups    = Object.entries(grouped).filter(([, items]) => !isCheckedOut(items[0]?.primaryGuestName, items[0]?.propertySlug, items))
-  const checkedOutCount = Object.entries(grouped).filter(([, items]) =>  isCheckedOut(items[0]?.primaryGuestName, items[0]?.propertySlug, items)).length
-
-  // Download as CSV
+  // Download active roster as CSV
   const downloadCSV = () => {
     const rows = [
-      ['Property', 'Primary Booker', 'Guest Name', 'Email', 'Phone', 'Submitted At'],
-      ...filtered
-        .filter(s => !isCheckedOut(s.primaryGuestName, s.propertySlug, grouped[groupKey(s)] || [s]))
-        .map(s => [
-          s.propertyName || s.propertySlug,
-          s.primaryGuestName || '',
-          s.guestName || '',
-          s.email || '',
-          s.phone || '',
-          s.submittedAtFormatted || s.submittedAt || '',
-        ])
+      ['Property', 'Primary Booker', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Source'],
+      ...activeGroups.flatMap(g => g.roster.map(p => [
+        g.propertyName || g.propertySlug,
+        g.primaryName || '(no primary booker)',
+        p.firstName, p.lastName, p.email, p.phone,
+        p.age ?? '',
+        p.role === 'primary' ? 'Primary booker' : p.signedIn ? 'Guest signed in' : 'Listed by booker',
+      ]))
     ]
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -153,8 +121,8 @@ export default function CheckIns() {
     }
   }
 
-  const handleMarkCheckedOut = async (primaryName, items) => {
-    if (!window.confirm(`Mark "${primaryName}" as checked out? They will move to the Checked Out page.`)) return
+  const handleMarkCheckedOut = async (group) => {
+    if (!window.confirm(`Mark "${group.primaryName}" as checked out? The whole group will move to the Checked Out page.`)) return
     const now = new Date()
     const ts = now.toLocaleString('en-US', {
       weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
@@ -162,9 +130,10 @@ export default function CheckIns() {
     })
     try {
       await addDoc(collection(db, 'v2_checkouts'), {
-        primaryGuestName:      primaryName,
-        propertySlug:          items[0]?.propertySlug || '',
-        propertyName:          items[0]?.propertyName || items[0]?.propertySlug || '',
+        tenantId:              getTenantId(),
+        primaryGuestName:      group.primaryName,
+        propertySlug:          group.propertySlug || '',
+        propertyName:          group.propertyName || group.propertySlug || '',
         checkedOutAt:          now.toISOString(),
         checkedOutAtFormatted: ts,
         checkedOutBy:          'admin',
@@ -248,10 +217,11 @@ export default function CheckIns() {
       )}
 
       {/* Active groups */}
-      {!loading && !error && activeGroups.map(([gkey, items]) => {
-        const primaryName = items[0]?.primaryGuestName?.trim() || 'Unknown'
+      {!loading && !error && activeGroups.map((group) => {
+        const gkey = group.key
+        const primaryLabel = group.orphan ? 'Guests — no primary booker yet' : (group.primaryName || 'Unknown')
         const isExpanded = expandedPrimary[gkey] !== false // default open
-        const props = [...new Set(items.map(i => i.propertyName || i.propertySlug))]
+        const people = group.roster.length
         return (
           <div key={gkey} className="bg-white rounded-2xl border border-slate-200 mb-4 overflow-hidden">
 
@@ -261,13 +231,13 @@ export default function CheckIns() {
                 onClick={() => togglePrimary(gkey)}
                 className="flex-1 flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50 transition-colors min-w-0">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-bold"
-                  style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
-                  {primaryName.charAt(0).toUpperCase()}
+                  style={{ background: group.orphan ? 'linear-gradient(135deg,#64748B,#94A3B8)' : 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                  {(primaryLabel.charAt(0) || '?').toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-900 text-[14px]">{primaryName}</p>
+                  <p className="font-bold text-slate-900 text-[14px]">{primaryLabel}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {props.join(' · ')} &nbsp;·&nbsp; {items.length} guest{items.length !== 1 ? 's' : ''}
+                    {group.propertyName || group.propertySlug} &nbsp;·&nbsp; {people} {people === 1 ? 'person' : 'people'}
                   </p>
                 </div>
                 <Icon
@@ -277,68 +247,87 @@ export default function CheckIns() {
                 />
               </button>
 
-              {/* Mark as Checked Out button */}
-              <button
-                onClick={() => handleMarkCheckedOut(primaryName, items)}
-                className="flex items-center gap-1.5 px-3 py-2 mx-2 rounded-lg text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition-colors flex-shrink-0"
-                title="Mark entire group as checked out"
-              >
-                <Icon name="exit_to_app" size={13} className="text-green-600" />
-                <span className="hidden sm:inline">Check Out</span>
-              </button>
+              {/* Mark as Checked Out button — not for orphan (no primary) groups */}
+              {!group.orphan && (
+                <button
+                  onClick={() => handleMarkCheckedOut(group)}
+                  className="flex items-center gap-1.5 px-3 py-2 mx-2 rounded-lg text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition-colors flex-shrink-0"
+                  title="Mark entire group as checked out"
+                >
+                  <Icon name="exit_to_app" size={13} className="text-green-600" />
+                  <span className="hidden sm:inline">Check Out</span>
+                </button>
+              )}
             </div>
 
-            {/* Guest rows */}
+            {/* Roster rows */}
             {isExpanded && (
               <div className="border-t border-slate-100">
-                {items.map((s, i) => (
-                  <div
-                    key={s.id}
-                    className="flex flex-wrap items-start gap-3 px-5 py-3.5 text-[13px] group"
-                    style={{ borderTop: i > 0 ? '1px solid #F1F5F9' : 'none' }}>
+                {group.roster.map((p, i) => {
+                  const fullName = `${p.firstName} ${p.lastName}`.trim() || '—'
+                  const sourceLabel = p.role === 'primary'
+                    ? 'Primary booker'
+                    : p.signedIn ? 'Signed in' : 'Listed by booker'
+                  return (
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-start gap-3 px-5 py-3.5 text-[13px] group"
+                      style={{ borderTop: i > 0 ? '1px solid #F1F5F9' : 'none' }}>
 
-                    {/* Avatar */}
-                    <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5 text-[11px] font-bold text-slate-500">
-                      {(s.guestName || '?').charAt(0).toUpperCase()}
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900">{s.guestName || '—'}</p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                        {s.email && (
-                          <a href={`mailto:${s.email}`}
-                            className="text-[11px] text-blue-600 hover:underline flex items-center gap-0.5">
-                            <Icon name="mail" size={10} /> {s.email}
-                          </a>
-                        )}
-                        {s.phone && (
-                          <a href={`tel:${s.phone}`}
-                            className="text-[11px] text-slate-500 flex items-center gap-0.5">
-                            <Icon name="phone" size={10} /> {s.phone}
-                          </a>
-                        )}
+                      {/* Avatar */}
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5 text-[11px] font-bold text-slate-500">
+                        {(fullName.charAt(0) || '?').toUpperCase()}
                       </div>
-                    </div>
 
-                    {/* Property + timestamp */}
-                    <div className="text-right flex-shrink-0">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-50 text-orange-700 mb-1">
-                        {s.propertyName || s.propertySlug}
-                      </span>
-                      <p className="text-[10px] text-slate-400">{s.submittedAtFormatted || s.submittedAt}</p>
-                    </div>
+                      {/* Details */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-900">
+                          {fullName}
+                          {p.age != null && <span className="ml-2 text-[11px] font-normal text-slate-400">age {p.age}{Number(p.age) < 18 ? ' · minor' : ''}</span>}
+                        </p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                          {p.email && (
+                            <a href={`mailto:${p.email}`}
+                              className="text-[11px] text-blue-600 hover:underline flex items-center gap-0.5">
+                              <Icon name="mail" size={10} /> {p.email}
+                            </a>
+                          )}
+                          {p.phone && (
+                            <a href={`tel:${p.phone}`}
+                              className="text-[11px] text-slate-500 flex items-center gap-0.5">
+                              <Icon name="phone" size={10} /> {p.phone}
+                            </a>
+                          )}
+                          {!p.email && !p.phone && (
+                            <span className="text-[11px] text-slate-300">No contact info yet</span>
+                          )}
+                        </div>
+                      </div>
 
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleDelete(s.id)}
-                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all mt-0.5"
-                      title="Delete this record"
-                    >
-                      <Icon name="delete" size={13} />
-                    </button>
-                  </div>
-                ))}
+                      {/* Source tag */}
+                      <div className="text-right flex-shrink-0">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                          style={{
+                            background: p.role === 'primary' ? '#FEF2F2' : p.signedIn ? '#EFF6FF' : '#F1F5F9',
+                            color:      p.role === 'primary' ? '#B91C1C' : p.signedIn ? '#1D4ED8' : '#64748B',
+                          }}>
+                          {sourceLabel}
+                        </span>
+                      </div>
+
+                      {/* Delete — only rows backed by an actual check-in submission */}
+                      {p.docId ? (
+                        <button
+                          onClick={() => handleDelete(p.docId)}
+                          className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all mt-0.5"
+                          title="Delete this check-in submission"
+                        >
+                          <Icon name="delete" size={13} />
+                        </button>
+                      ) : <div className="w-6 flex-shrink-0" />}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -348,8 +337,8 @@ export default function CheckIns() {
       {/* Summary */}
       {!loading && !error && activeGroups.length > 0 && (
         <p className="text-xs text-slate-400 text-center mt-2">
-          {activeGroups.reduce((n, [, items]) => n + items.length, 0)} active guest submission{activeGroups.reduce((n, [, items]) => n + items.length, 0) !== 1 ? 's' : ''} ·{' '}
-          {activeGroups.length} primary booker{activeGroups.length !== 1 ? 's' : ''}
+          {activeGroups.reduce((n, g) => n + g.roster.length, 0)} active guest{activeGroups.reduce((n, g) => n + g.roster.length, 0) !== 1 ? 's' : ''} ·{' '}
+          {activeGroups.filter(g => !g.orphan).length} primary booker{activeGroups.filter(g => !g.orphan).length !== 1 ? 's' : ''}
           {checkedOutCount > 0 && <> · <Link to="/admin-v2/checkouts" className="text-green-600 hover:underline">{checkedOutCount} checked out</Link></>}
         </p>
       )}

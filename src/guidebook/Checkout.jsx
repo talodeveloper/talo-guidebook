@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useOutletContext, Link, useParams, useLocation } from 'react-router-dom'
 import { contentStore } from '../data/contentStore'
 import { db } from '../firebase'
-import { collection, addDoc } from 'firebase/firestore'
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import Icon from '../components/Icon'
 import { getHostMode, guidebookPath, getTenantId } from '../data/tenant'
+import { isStayActive } from '../data/guestRoster'
 
 function ContentBlock({ block }) {
   return (
@@ -40,6 +41,7 @@ export default function Checkout() {
   const [checkoutForm, setCheckoutForm]           = useState({ primaryName: '', guestName: '' })
   const [checkoutSubmitted, setCheckoutSubmitted] = useState(false)
   const [submittingCheckout, setSubmittingCheckout] = useState(false)
+  const [alreadyCheckedOut, setAlreadyCheckedOut] = useState(false)
 
   useEffect(() => {
     const load = () => {
@@ -83,6 +85,32 @@ export default function Checkout() {
   const handleCheckout = async () => {
     if (!checkoutForm.primaryName.trim() || !checkoutForm.guestName.trim()) return
     setSubmittingCheckout(true)
+    const primaryName = checkoutForm.primaryName.trim()
+    const tid = getTenantId()
+
+    // Only check out when there's an ACTIVE stay for this booker + property.
+    // If they've already checked out (or never had an active stay), show the
+    // "already checked out" message instead of writing a duplicate record.
+    try {
+      const [ciSnap, coSnap] = await Promise.all([
+        getDocs(query(collection(db, 'v2_checkins'),  where('propertySlug', '==', slug))),
+        getDocs(query(collection(db, 'v2_checkouts'), where('propertySlug', '==', slug))),
+      ])
+      const keepMine = (r) => r.tenantId === tid || (!r.tenantId && tid === 'talo')
+      const checkins  = ciSnap.docs.map(d => d.data()).filter(keepMine)
+      const checkouts = coSnap.docs.map(d => d.data()).filter(keepMine)
+
+      if (!isStayActive(checkins, checkouts, primaryName, slug)) {
+        setSubmittingCheckout(false)
+        setAlreadyCheckedOut(true)
+        return
+      }
+    } catch (err) {
+      // If the lookup fails (network), fall through and record the checkout
+      // anyway — better to over-record than to block a genuine checkout.
+      console.error('[Firestore] checkout active-stay lookup failed:', err)
+    }
+
     const now = new Date()
     const ts = now.toLocaleString('en-US', {
       weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
@@ -90,8 +118,8 @@ export default function Checkout() {
     })
     try {
       await addDoc(collection(db, 'v2_checkouts'), {
-        tenantId:              getTenantId(),
-        primaryGuestName:      checkoutForm.primaryName.trim(),
+        tenantId:              tid,
+        primaryGuestName:      primaryName,
         guestName:             checkoutForm.guestName.trim(),
         propertySlug:          slug,
         propertyName:          property.name,
@@ -195,7 +223,15 @@ export default function Checkout() {
 
               {/* V2 + V3: sign-out form (all tasks must be checked first — gate is allChecked above) */}
               {(isV2 || isV3) && (
-                checkoutSubmitted ? (
+                alreadyCheckedOut ? (
+                  <div className="mt-4 rounded-xl p-5 text-center border border-blue-200 bg-blue-50">
+                    <Icon name="verified" size={30} className="text-blue-600 mx-auto mb-2" />
+                    <p className="font-bold text-blue-800 text-[15px]">You've already checked out</p>
+                    <p className="text-blue-700 text-[13px] mt-1">
+                      Thank you! This booking has already been checked out from {property.name}. Safe travels. 🌊
+                    </p>
+                  </div>
+                ) : checkoutSubmitted ? (
                   <div className="mt-4 rounded-xl p-5 text-center border border-green-200 bg-green-50">
                     <Icon name="check_circle" size={30} className="text-green-600 mx-auto mb-2" />
                     <p className="font-bold text-green-800 text-[15px]">Checkout confirmed!</p>

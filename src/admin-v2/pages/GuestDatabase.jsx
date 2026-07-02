@@ -3,6 +3,7 @@ import { db } from '../../firebase'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import Icon from '../../components/Icon'
 import { getTenantId } from '../../data/tenant'
+import { buildGuestDatabaseRows } from '../../data/guestRoster'
 
 const PROPERTY_LABELS = {
   'reynard-way':  'Reynard Way',
@@ -60,47 +61,31 @@ export default function GuestDatabase() {
     } catch {}
   }, [])
 
-  // For each check-in row, find the FIRST checkout that happened AFTER this check-in
-  // for the same primary booker + property. That's their checked-out date.
-  const rows = useMemo(() => {
-    const decorated = checkins.map(c => {
-      const checkinTs = new Date(c.submittedAt || 0).getTime()
-      const key       = c.primaryGuestName?.trim().toLowerCase()
-      const match = checkouts
-        .filter(co => co.propertySlug === c.propertySlug)
-        .filter(co => co.primaryGuestName?.trim().toLowerCase() === key)
-        .filter(co => new Date(co.checkedOutAt || 0).getTime() >= checkinTs)
-        .sort((a, b) => new Date(a.checkedOutAt) - new Date(b.checkedOutAt))[0]
-
-      return {
-        id:            c.id,
-        guestName:     c.guestName || '—',
-        email:         c.email || '',
-        phone:         c.phone || '',
-        propertySlug:  c.propertySlug,
-        propertyName:  c.propertyName || c.propertySlug,
-        checkedInAt:   c.submittedAt,
-        checkedOutAt:  match?.checkedOutAt || null,
-      }
-    })
-    // Sort newest first
-    return decorated.sort((a, b) => new Date(b.checkedInAt) - new Date(a.checkedInAt))
-  }, [checkins, checkouts])
+  // Full merged roster — every individual (primary booker, the guests they
+  // listed, and anyone who signed in themselves), with fields filled from
+  // whichever source provided them. Checked-out date is the group's (whole
+  // group checks out together).
+  const rows = useMemo(
+    () => buildGuestDatabaseRows(checkins, checkouts),
+    [checkins, checkouts]
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter(r => {
       if (filterSlug !== 'all' && r.propertySlug !== filterSlug) return false
       if (!q) return true
-      return [r.guestName, r.email, r.phone, r.propertyName]
+      return [r.firstName, r.lastName, r.email, r.phone, r.propertyName]
         .some(v => (v || '').toLowerCase().includes(q))
     })
   }, [rows, search, filterSlug])
 
   const downloadCSV = () => {
-    const header = ['Guest Name', 'Email', 'Phone', 'Property', 'Checked-In Date', 'Checked-Out Date']
+    const header = ['Type', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Property', 'Checked-In Date', 'Checked-Out Date']
     const data = filtered.map(r => [
-      r.guestName, r.email, r.phone,
+      r.role === 'primary' ? 'P' : 'G',
+      r.firstName, r.lastName, r.email, r.phone,
+      r.age ?? '',
       PROPERTY_LABELS[r.propertySlug] || r.propertyName,
       fmtDate(r.checkedInAt),
       r.checkedOutAt ? fmtDate(r.checkedOutAt) : 'Still checked in',
@@ -124,7 +109,11 @@ export default function GuestDatabase() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Guest Database</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Every guest check-in submission — newest first. Use for email marketing.
+            Everyone — primary bookers plus every guest staying with them — newest first. Fields fill in as guests sign in.
+          </p>
+          <p className="text-xs text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span><span className="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold mr-1" style={{ background: '#FEF2F2', color: '#B91C1C' }}>P</span>Primary booker — provides name, email &amp; phone</span>
+            <span><span className="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold mr-1" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>G</span>Guest — age comes from the booker; email/phone only once they sign in themselves</span>
           </p>
         </div>
         {filtered.length > 0 && (
@@ -193,9 +182,12 @@ export default function GuestDatabase() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3" title="P = Primary booker · G = Guest">Type</th>
+                  <th className="px-4 py-3">First Name</th>
+                  <th className="px-4 py-3">Last Name</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Age</th>
                   <th className="px-4 py-3">Property</th>
                   <th className="px-4 py-3">Checked In</th>
                   <th className="px-4 py-3">Checked Out</th>
@@ -204,18 +196,30 @@ export default function GuestDatabase() {
               <tbody>
                 {filtered.map((r, idx) => (
                   <tr
-                    key={r.id}
+                    key={idx}
                     className="hover:bg-slate-50 transition-colors"
                     style={{ borderTop: idx > 0 ? '1px solid #F1F5F9' : 'none' }}
                   >
                     <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-bold"
+                        title={r.role === 'primary' ? 'Primary booker' : 'Guest'}
+                        style={{
+                          background: r.role === 'primary' ? '#FEF2F2' : '#EFF6FF',
+                          color:      r.role === 'primary' ? '#B91C1C' : '#1D4ED8',
+                        }}>
+                        {r.role === 'primary' ? 'P' : 'G'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center text-[11px] font-bold text-orange-700 flex-shrink-0">
-                          {(r.guestName || '?').charAt(0).toUpperCase()}
+                          {(r.firstName || r.lastName || '?').charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold text-slate-900">{r.guestName}</span>
+                        <span className="font-semibold text-slate-900">{r.firstName || '—'}</span>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-slate-700">{r.lastName || <span className="text-slate-300">—</span>}</td>
                     <td className="px-4 py-3">
                       {r.email ? (
                         <a href={`mailto:${r.email}`} className="text-blue-600 hover:underline">{r.email}</a>
@@ -225,6 +229,9 @@ export default function GuestDatabase() {
                       {r.phone ? (
                         <a href={`tel:${r.phone}`} className="text-slate-600 hover:underline">{r.phone}</a>
                       ) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {r.age != null ? r.age : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700">
