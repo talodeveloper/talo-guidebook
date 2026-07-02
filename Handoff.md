@@ -1,6 +1,7 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions**
+> **Last updated: Jul 2 2026 — Guest roster merge (co-guests + guest sign-ins under each primary booker), Guest Database full roster + P/G type column, smart checkout, maintenance-mode activation fix**
+> Previous: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions
 > Previous: Jun 25 2026 — Landing page redesign, password reset, super-admin routing fix, tenant data isolation for check-ins, new-account banner fix
 > Session 1 — Built full V2 UI
 > Session 2 — FAQ layout, hero tweaks, Vista Pointe photo mapping
@@ -21,6 +22,7 @@
 > Phase 4 (partial) — Signup page live. Stripe still placeholder. Tenant isolation + data-loss bugs fully fixed.
 > Session 14 (Jun 25 2026) — Landing page redesign, password reset flows, super-admin apex routing fix, check-in/checkout tenant isolation, new-account "Initial setup" banner fix, login screen copy update
 > Session 15 (Jul 1 2026) — Per-property theme system + night backgrounds. See section below.
+> Session 16 (Jul 2 2026) — Maintenance-mode activation fix + guest roster merge (co-guests & guest sign-ins unified under primary booker, Guest Database full roster + P/G column, smart checkout). See section below.
 > Everything below is confirmed and saved to disk.
 
 ---
@@ -380,6 +382,25 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 - Theme field stored in `properties[slug].theme` in Firestore once tenant publishes
 
 ---
+
+### ✅ Session 16 (Jul 2 2026) — Maintenance fix + guest roster merge — DEPLOYED & LIVE
+
+**Maintenance-mode activation fix** (`src/admin-v3/Layout.jsx`, `src/data/maintenanceStore.js`, `src/admin-v3/MaintenanceScreen.jsx`):
+- **Root-cause bug:** an open admin tab only updated maintenance status on a Firestore snapshot. A *scheduled* window's start time passing is not a document change (just the clock moving), so the tab stayed on `'upcoming'` forever and never locked out — the admin could keep editing/publishing during maintenance. Fixed: a 10s local tick recomputes the derived status from the stored data, so `upcoming→active` and `active→ended` flip on their own with no refresh.
+- New `mode` field on the maintenance record (`'scheduled'` vs `'now'`):
+  - **Scheduled** (advance notice): on activation, the unpublished draft is discarded + session ended; maintenance screen shows a "Sign in again" button and stays up until they re-auth. Upcoming banner warns to publish first.
+  - **Start now** (no notice): draft + session preserved; when the window ends the tab auto-returns to the admin with unpublished changes intact.
+- ⚠️ Follow-up not done: the super-admin Maintenance page "What happens" copy still says "At end → access restored automatically" for all cases — now only true for Start-now. Minor copy fix.
+
+**Guest roster merge** — NEW `src/data/guestRoster.js` (pure, read-only merge engine; both admin views consume it so they never disagree):
+- Unifies each booking's primary record + the co-guests the primary listed + guests who signed in themselves into one roster per booking.
+- Matching: a guest self-check-in fills the person the primary listed, matched by **first name → last name on collision → earliest-entered wins on a full tie**. Only blank fields filled, never overwrites.
+- Guests attach to their property's **single active stay** automatically — no "which booker?" field on the check-in form (the design rests on: one active booking per property at a time; overlap tiebreak = stay whose window contains the submit time, else most recent active).
+- **Check-In Records** (`admin-v2/pages/CheckIns.jsx`): full roster per booker (first, last, age, email, phone) tagged Primary / Signed-in / Listed-by-booker; whole-group checkout preserved; per-row delete only for rows backed by a real check-in doc; orphan guests (no primary yet) shown under a "Guests — no primary booker yet" group.
+- **Guest Database** (`admin-v2/pages/GuestDatabase.jsx`): lists EVERYONE (bookers + all guests). Columns: **Type (P/G)** · First · Last · Email · Phone · Age · Property · Checked-In · Checked-Out. Legend explains blank fields (guest age from booker; email/phone only after they self-sign-in). CSV export (opens in Excel) with all columns.
+- **Checkout** (`guidebook/Checkout.jsx`): only checks out when an active stay exists for that booker+property; otherwise shows "You've already checked out from this property" and writes nothing. Whole group checks out together (`isStayActive` from the engine).
+- Verified with a 16-case Node test of the pure engine (co-guest merge, email fill-in, first/last collision, unmatched-guest-as-own-row, age preservation, full DB roster, checkout active/inactive/wrong-name). Test was throwaway, not committed.
+- **Data note:** guest records created before Jul 2 2026 have no primary-booker link, so historical guests may appear under "Guests — no primary booker yet." New check-ins merge correctly.
 
 ### ✅ Already built (confirmed Jul 1 2026)
 
