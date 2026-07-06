@@ -240,6 +240,11 @@ export default function AdminV3Login() {
       return
     }
 
+    if (result === 'wrong-tenant') {
+      setError("This account belongs to a different workspace. Please sign in at that workspace's own address instead.")
+      return
+    }
+
     if (result === true) {
       const session = await initSession()
       if (session.status === 'ok') {

@@ -296,8 +296,12 @@ export function buildFaqList(data, slug) {
   return out
 }
 
-// Ensure FAQ items have stable ids + global FAQ containers exist
-function migrateFaqStructures(draft) {
+// Ensure FAQ items have stable ids + global FAQ containers exist.
+// IDs are derived deterministically (slug + index) rather than randomly, so
+// running this on two separate copies of the same underlying data (e.g. once
+// for _draft, once for _live) always produces IDENTICAL output — required for
+// hasUnsavedChanges()'s exact-equality comparison to be meaningful.
+function migrateFaqStructures(draft, persistKey = DRAFT_KEY) {
   if (!draft) return draft
   let changed = false
   if (!draft.globalFaq)   { draft.globalFaq = [];   changed = true }
@@ -305,12 +309,12 @@ function migrateFaqStructures(draft) {
   if (draft.faq) {
     for (const slug of Object.keys(draft.faq)) {
       draft.faq[slug] = (draft.faq[slug] || []).map((it, i) => {
-        if (!it.id) { changed = true; return { ...it, id: `lfaq-${slug}-${i}-${Math.random().toString(36).slice(2, 8)}` } }
+        if (!it.id) { changed = true; return { ...it, id: `lfaq-${slug}-${i}` } }
         return it
       })
     }
   }
-  if (changed) writeJSON(DRAFT_KEY, draft)
+  if (changed) writeJSON(persistKey, draft)
   return draft
 }
 
@@ -433,10 +437,17 @@ function migrateSharedToPropertyBlocks(draft) {
   return changed ? { ...draft, blocks } : draft
 }
 
-// Shared post-load processing for a draft: migrations + one-time backfills.
-function postProcessDraft(draft) {
-  draft = migrateFaqStructures(draft)
-  draft = migrateHawkBedroomImages(draft, DRAFT_KEY)
+// Shared post-load processing: migrations + one-time backfills. Used for BOTH
+// _draft and _live so the two stay in lockstep — any divergence here would
+// make hasUnsavedChanges() (a strict JSON.stringify equality check) report a
+// false "unpublished changes" even when nothing was actually edited, which is
+// exactly the kind of confusion that risks someone publishing a stale/local
+// snapshot over newer live content. persistKey controls which localStorage
+// slot receives a migration's one-time backfill write (DRAFT_KEY when
+// processing the draft, ADMIN_V3_LIVE_KEY when processing live).
+function postProcessDraft(draft, persistKey = DRAFT_KEY) {
+  draft = migrateFaqStructures(draft, persistKey)
+  draft = migrateHawkBedroomImages(draft, persistKey)
   draft = migrateSharedToPropertyBlocks(draft)
   if (draft && !draft.activityCategories) {
     draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
@@ -464,7 +475,10 @@ async function hydrateFromFirestore() {
     }
     if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
       // Real published content exists — adopt it as both live and draft.
-      _live = migrateHawkBedroomImages(full, ADMIN_V3_LIVE_KEY)
+      // _live goes through the SAME migration pipeline as _draft (just
+      // persisting backfills to the live slot instead of the draft slot) so
+      // the two are exactly comparable.
+      _live = postProcessDraft(full, ADMIN_V3_LIVE_KEY)
       _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
       writeJSON(ADMIN_V3_LIVE_KEY, _live)
       writeJSON(DRAFT_KEY, _draft)
@@ -529,12 +543,15 @@ if (_draft) {
   // Fast path: a local working copy exists — trust it (unchanged behavior).
   _draft = migrateImages(_draft)
   _draft = postProcessDraft(_draft)
-  if (_live) _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
+  // _live must go through the SAME pipeline (not just the Hawk fix) or it will
+  // never be exactly comparable to _draft, causing hasUnsavedChanges() to
+  // report false "unpublished changes" for edits that never happened.
+  if (_live) _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
   writeJSON(DRAFT_KEY, _draft)
   _ready = true
 } else if (_live) {
   // A published copy exists locally but no draft — derive the draft from it.
-  _live = migrateHawkBedroomImages(_live, ADMIN_V3_LIVE_KEY)
+  _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
   _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
   writeJSON(DRAFT_KEY, _draft)
   _ready = true
@@ -554,11 +571,26 @@ export const adminV3Store = {
   async login(email, password) {
     try {
       const { user } = await adminSignIn(email, password)
-      // Check tenant status — deactivated/suspended see a payment wall, not the dashboard
       const token = await user.getIdTokenResult(true)
-      const tenantId = token.claims.tenantId
-      if (tenantId) {
-        const snap = await getDoc(doc(db, 'tenants', tenantId))
+      const accountTenantId = token.claims.tenantId
+      const hostTenantId = getTenantId()
+
+      // Wrong-workspace guard: the account's OWN tenant (from its Firebase
+      // Auth custom claim, set at signup and immutable by the account holder)
+      // must match the tenant implied by the CURRENT hostname. Without this,
+      // a testrentals owner who mistakenly opens talo.talo.llc and signs in
+      // with their own valid credentials would land inside TALO's admin
+      // panel — hostname-based tenant resolution has no other way to know
+      // the login "belongs" elsewhere. Reject and sign back out rather than
+      // silently exposing/allowing edits to a different tenant's workspace.
+      if (accountTenantId && accountTenantId !== hostTenantId) {
+        await adminSignOut()
+        return 'wrong-tenant'
+      }
+
+      // Check tenant status — deactivated/suspended see a payment wall, not the dashboard
+      if (accountTenantId) {
+        const snap = await getDoc(doc(db, 'tenants', accountTenantId))
         if (snap.exists()) {
           const status = snap.data().status
           if (status === 'deactivated' || status === 'suspended') {
