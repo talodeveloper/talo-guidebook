@@ -120,18 +120,32 @@ export function buildGuestGroups(checkins, checkouts) {
     groups.push({
       key, primaryName, propertySlug: slug, propertyName: lead.propertyName || slug,
       checkinTs, checkoutTs: checkedOut ? coTs : null, active: !checkedOut, orphan: false, roster,
+      stayCheckIn: lead.stayCheckIn || null, stayCheckOut: lead.stayCheckOut || null,
     })
   }
 
   // Attach guest self-check-ins to the right group, merging by name.
+  //
+  // Guests now pick their primary booker by name from a dropdown on the
+  // check-in form (see V3CheckInPage), so g.primaryGuestName is an EXPLICIT,
+  // exact link when present — matched directly against the group's primary
+  // name, no guessing needed. Older records written before that field existed
+  // fall back to the previous "single active/most-recent stay" heuristic.
   const orphans = new Map()
   for (const g of guests) {
     const slug = g.propertySlug || ''
-    const gts = ts(g.submittedAt)
     const cands = groups.filter(gr => gr.propertySlug === slug)
-    let target = cands.find(gr => gr.checkinTs <= gts && (gr.checkoutTs == null || gts <= gr.checkoutTs))
-      || cands.filter(gr => gr.active).sort((a, b) => b.checkinTs - a.checkinTs)[0]
-      || cands.sort((a, b) => b.checkinTs - a.checkinTs)[0]
+
+    let target = null
+    if (norm(g.primaryGuestName)) {
+      target = cands.find(gr => norm(gr.primaryName) === norm(g.primaryGuestName))
+    }
+    if (!target) {
+      const gts = ts(g.submittedAt)
+      target = cands.find(gr => gr.checkinTs <= gts && (gr.checkoutTs == null || gts <= gr.checkoutTs))
+        || cands.filter(gr => gr.active).sort((a, b) => b.checkinTs - a.checkinTs)[0]
+        || cands.sort((a, b) => b.checkinTs - a.checkinTs)[0]
+    }
 
     const guestPerson = person(g.firstName, g.lastName, { email: g.email, phone: g.phone, role: 'guest', signedIn: true, checkedInAt: g.submittedAt, docId: g.id })
 
@@ -183,10 +197,26 @@ export function buildGuestDatabaseRows(checkins, checkouts) {
         propertyName: gr.propertyName,
         checkedInAt:  p.checkedInAt || (gr.checkinTs ? new Date(gr.checkinTs).toISOString() : null),
         checkedOutAt: gr.checkoutTs ? new Date(gr.checkoutTs).toISOString() : null,
+        stayCheckIn:  gr.stayCheckIn || null,
+        stayCheckOut: gr.stayCheckOut || null,
       })
     }
   }
   return rows.sort((a, b) => ts(b.checkedInAt) - ts(a.checkedInAt))
+}
+
+/**
+ * Active primary bookers at a property — used to populate the guest
+ * check-in dropdown ("who's your primary booker?"). Returns first/last name
+ * only (no email/phone/dates) — deliberately minimal for guest-facing display.
+ */
+export function getActivePrimaryBookers(checkins, checkouts, slug) {
+  const groups = buildGuestGroups(checkins, checkouts)
+    .filter(g => g.propertySlug === slug && g.active && !g.orphan)
+  return groups.map(g => {
+    const primary = g.roster.find(p => p.role === 'primary')
+    return { name: g.primaryName, firstName: primary?.firstName || '', lastName: primary?.lastName || '' }
+  })
 }
 
 /** Is there an active (not-yet-checked-out) stay for this primary + property? */

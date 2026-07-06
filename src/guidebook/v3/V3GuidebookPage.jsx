@@ -321,10 +321,9 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
         <div className={`grid gap-2 ${checkInEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {checkInEnabled && (
             <Link to={guidebookPath(slug, '/checkin')}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+              className="flex items-center justify-center py-2 rounded-xl text-[12px] font-bold text-white shadow-sm transition-opacity hover:opacity-90"
               style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
-              <Icon name="login" size={13} className="text-white" />
-              Check In
+              Rental Terms
             </Link>
           )}
           <Link to={guidebookPath(slug, '/checkout')}
@@ -664,7 +663,7 @@ export default function V3GuidebookPage() {
               <Link to={guidebookPath(slug, '/checkin')} onClick={() => setTocOpen(false)}
                 className="flex items-center gap-3 px-4 py-3 text-label-md border-b font-semibold"
                 style={{ borderColor: t.BORDER, color: '#2563EB', background: 'rgba(37,99,235,0.08)' }}>
-                <Icon name="login" size={15} style={{ color: '#2563EB' }} /> Check In
+                Rental Terms
               </Link>
             )}
             <Link to={guidebookPath(slug, '/checkout')} onClick={() => setTocOpen(false)}
@@ -709,7 +708,7 @@ export default function V3GuidebookPage() {
                 <Link to={guidebookPath(slug, '/checkin')}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
                   style={{ background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)' }}>
-                  <Icon name="login" size={13} /> Check In
+                  Rental Terms
                 </Link>
               )}
               <Link to={guidebookPath(slug, '/checkout')}
@@ -786,8 +785,7 @@ export default function V3GuidebookPage() {
                   <Link to={guidebookPath(slug, '/checkin')}
                     className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors font-semibold"
                     style={{ color: '#2563EB', background: 'rgba(37,99,235,0.1)' }}>
-                    <Icon name="login" size={14} style={{ color: '#2563EB' }} />
-                    <span>Check In</span>
+                    <span>Rental Terms</span>
                   </Link>
                 )}
                 <Link to={guidebookPath(slug, '/checkout')}

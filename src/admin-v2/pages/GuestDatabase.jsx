@@ -22,6 +22,13 @@ const fmtDate = (iso) => {
   } catch { return iso }
 }
 
+// Booking dates are stored as plain 'YYYY-MM-DD' strings from <input type="date">
+const fmtStayDate = (iso) => {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${m}/${d}/${y}`
+}
+
 export default function GuestDatabase() {
   const [checkins, setCheckins]   = useState([])
   const [checkouts, setCheckouts] = useState([])
@@ -81,12 +88,14 @@ export default function GuestDatabase() {
   }, [rows, search, filterSlug])
 
   const downloadCSV = () => {
-    const header = ['Type', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Property', 'Checked-In Date', 'Checked-Out Date']
+    const header = ['Type', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Property', 'Booking Check-In', 'Booking Check-Out', 'Checked-In Date', 'Checked-Out Date']
     const data = filtered.map(r => [
       r.role === 'primary' ? 'P' : 'G',
       r.firstName, r.lastName, r.email, r.phone,
       r.age ?? '',
       PROPERTY_LABELS[r.propertySlug] || r.propertyName,
+      r.stayCheckIn || '',
+      r.stayCheckOut || '',
       fmtDate(r.checkedInAt),
       r.checkedOutAt ? fmtDate(r.checkedOutAt) : 'Still checked in',
     ])
@@ -189,6 +198,7 @@ export default function GuestDatabase() {
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Age</th>
                   <th className="px-4 py-3">Property</th>
+                  <th className="px-4 py-3">Booking Dates</th>
                   <th className="px-4 py-3">Checked In</th>
                   <th className="px-4 py-3">Checked Out</th>
                 </tr>
@@ -237,6 +247,11 @@ export default function GuestDatabase() {
                       <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700">
                         {PROPERTY_LABELS[r.propertySlug] || r.propertyName}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {r.stayCheckIn && r.stayCheckOut
+                        ? `${fmtStayDate(r.stayCheckIn)} – ${fmtStayDate(r.stayCheckOut)}`
+                        : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{fmtDate(r.checkedInAt)}</td>
                     <td className="px-4 py-3">

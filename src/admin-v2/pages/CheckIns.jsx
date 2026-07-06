@@ -13,6 +13,13 @@ const PROPERTY_LABELS = {
   'vista-pointe': 'Vista Pointe',
 }
 
+// Booking dates are stored as plain 'YYYY-MM-DD' strings from <input type="date">
+const fmtStayDate = (iso) => {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${m}/${d}/${y}`
+}
+
 export default function CheckIns() {
   const [submissions, setSubmissions]   = useState([])
   const [checkouts, setCheckouts]       = useState([])
@@ -75,10 +82,12 @@ export default function CheckIns() {
   // Download active roster as CSV
   const downloadCSV = () => {
     const rows = [
-      ['Property', 'Primary Booker', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Source'],
+      ['Property', 'Primary Booker', 'Booking Check-In', 'Booking Check-Out', 'First Name', 'Last Name', 'Email', 'Phone', 'Age', 'Source'],
       ...activeGroups.flatMap(g => g.roster.map(p => [
         g.propertyName || g.propertySlug,
         g.primaryName || '(no primary booker)',
+        g.stayCheckIn || '',
+        g.stayCheckOut || '',
         p.firstName, p.lastName, p.email, p.phone,
         p.age ?? '',
         p.role === 'primary' ? 'Primary booker' : p.signedIn ? 'Guest signed in' : 'Listed by booker',
@@ -238,6 +247,9 @@ export default function CheckIns() {
                   <p className="font-bold text-slate-900 text-[14px]">{primaryLabel}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {group.propertyName || group.propertySlug} &nbsp;·&nbsp; {people} {people === 1 ? 'person' : 'people'}
+                    {group.stayCheckIn && group.stayCheckOut && (
+                      <> &nbsp;·&nbsp; <span className="font-semibold text-slate-500">{fmtStayDate(group.stayCheckIn)} – {fmtStayDate(group.stayCheckOut)}</span></>
+                    )}
                   </p>
                 </div>
                 <Icon

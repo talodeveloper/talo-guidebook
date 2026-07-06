@@ -5,8 +5,9 @@ import { NightModeCtx, readV3Data } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
-import { db } from '../../firebase'
+import { db, functions } from '../../firebase'
 import { collection, addDoc } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 
 // Colors resolved via CSS custom properties injected by V3GuidebookLayout
 const GREEN_GRAD = 'linear-gradient(135deg, #059669 0%, #10B981 100%)'
@@ -84,7 +85,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
               style={{ background: GREEN_GRAD }}>
               <Icon name="check_circle" size={44} className="text-white" />
             </div>
-            <h1 className="text-2xl font-bold mb-1" style={{ color: t.TEXT }}>Check-In Complete!</h1>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: t.TEXT }}>Rental Terms Accepted!</h1>
             <p className="text-[15px]" style={{ color: t.MUTED }}>
               Thank you, <strong style={{ color: t.TEXT }}>{fullName}</strong>
             </p>
@@ -114,6 +115,9 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
                 {data.email && <p><strong>Email:</strong> {data.email}</p>}
                 {data.phone && <p><strong>Phone:</strong> {data.phone}</p>}
                 <p><strong>Role:</strong> {isPrimary ? 'Primary Booker' : 'Guest'}</p>
+                {isPrimary && data.stayCheckIn && data.stayCheckOut && (
+                  <p><strong>Booking Dates:</strong> {data.stayCheckIn} to {data.stayCheckOut}</p>
+                )}
                 <p><strong>Agreed on:</strong> {timestamp}</p>
               </div>
               {isPrimary && (data.coGuests || []).length > 0 && (
@@ -204,7 +208,7 @@ function ChoiceScreen({ property, slug, nightMode, onChoose }) {
               style={{ background: BLUE_GRAD }}>
               <Icon name="login" size={30} className="text-white" />
             </div>
-            <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: t.PRIMARY }}>Check-In</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: t.PRIMARY }}>Rental Terms</p>
             <h1 className="text-2xl font-bold" style={{ color: t.TEXT }}>{property.name}</h1>
           </div>
 
@@ -312,6 +316,14 @@ export default function V3CheckInPage() {
   const [adultCount, setAdultCount] = useState(0)
   const [minorCount, setMinorCount] = useState(0)
   const [coGuests, setCoGuests]     = useState([]) // [{ firstName, lastName, age, isMinor }]
+  // Primary-only: booking stay dates
+  const [stayCheckIn, setStayCheckIn]   = useState('')
+  const [stayCheckOut, setStayCheckOut] = useState('')
+
+  // Guest-only: which primary booker they're staying with
+  const [selectedBooker, setSelectedBooker] = useState('')
+  const [bookers, setBookers]               = useState(null) // null = not yet loaded
+  const [bookersError, setBookersError]     = useState('')
 
   const t = buildTheme()
   const offerText = property.checkInOfferText || DEFAULT_CHECKIN_OFFER
@@ -361,6 +373,25 @@ export default function V3CheckInPage() {
   const toggleRule = (id) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
 
   const isPrimary = step === 'primary'
+  const isGuest   = step === 'guest'
+
+  // Fetch active primary bookers via Cloud Function when a guest reaches this
+  // step. Runs server-side with admin privileges — guests themselves cannot
+  // read the check-in collections directly (see functions/index.js).
+  useEffect(() => {
+    if (!isGuest) return
+    let cancelled = false
+    setBookers(null)
+    setBookersError('')
+    const fn = httpsCallable(functions, 'getActivePrimaryBookers')
+    fn({ tenantId: getTenantId(), propertySlug: slug })
+      .then(res => { if (!cancelled) setBookers(res.data?.bookers || []) })
+      .catch(err => {
+        console.error('[Functions] getActivePrimaryBookers failed:', err)
+        if (!cancelled) { setBookers([]); setBookersError('Could not load active bookings. Please try again.') }
+      })
+    return () => { cancelled = true }
+  }, [isGuest, slug])
 
   // ── Validity ────────────────────────────────────────────────────────────
   const namesValid = form.firstName.trim() !== '' && form.lastName.trim() !== ''
@@ -370,10 +401,14 @@ export default function V3CheckInPage() {
   const phoneValid = isPrimary
     ? (form.phone.trim() !== '' && !validatePhone(form.phone))
     : true
+  const bookerValid = !isGuest || selectedBooker.trim() !== ''
   const coGuestsValid = !isPrimary || coGuests.every(g =>
     g.firstName.trim() !== '' && g.lastName.trim() !== '' && String(g.age).trim() !== '' && !isNaN(Number(g.age))
   )
-  const canSubmit = allChecked && namesValid && emailValid && phoneValid && coGuestsValid
+  const stayDatesValid = !isPrimary || (
+    stayCheckIn.trim() !== '' && stayCheckOut.trim() !== '' && new Date(stayCheckOut) > new Date(stayCheckIn)
+  )
+  const canSubmit = allChecked && namesValid && emailValid && phoneValid && coGuestsValid && stayDatesValid && bookerValid
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -394,7 +429,7 @@ export default function V3CheckInPage() {
       firstName:            form.firstName.trim(),
       lastName:             form.lastName.trim(),
       guestName:            fullName,
-      primaryGuestName:     isPrimary ? fullName : '',
+      primaryGuestName:     isPrimary ? fullName : selectedBooker,
       email:                form.email.trim() || '',
       phone:                form.phone.trim() || '',
       submittedAt:          now.toISOString(),
@@ -410,6 +445,8 @@ export default function V3CheckInPage() {
         age:       Number(g.age),
         isMinor:   Number(g.age) < 18,
       }))
+      payload.stayCheckIn  = stayCheckIn
+      payload.stayCheckOut = stayCheckOut
     }
 
     try {
@@ -418,7 +455,12 @@ export default function V3CheckInPage() {
       console.error('[Firestore] check-in save failed:', err)
     }
 
-    setSubmittedData({ ...form, coGuests: isPrimary ? coGuests : [] })
+    setSubmittedData({
+      ...form,
+      coGuests: isPrimary ? coGuests : [],
+      stayCheckIn: isPrimary ? stayCheckIn : '',
+      stayCheckOut: isPrimary ? stayCheckOut : '',
+    })
     setSubmitTime(ts)
     setSubmitted(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -435,9 +477,9 @@ export default function V3CheckInPage() {
               style={{ background: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
               <Icon name="lock" size={26} style={{ color: t.MUTED }} />
             </div>
-            <h1 className="text-lg font-bold mb-1" style={{ color: t.TEXT }}>Check-in isn't available</h1>
+            <h1 className="text-lg font-bold mb-1" style={{ color: t.TEXT }}>Rental Terms isn't available</h1>
             <p className="text-[13px] mb-6" style={{ color: t.MUTED }}>
-              Online check-in is not enabled for this property. Please contact your host with any questions.
+              Online rental terms is not enabled for this property. Please contact your host with any questions.
             </p>
             <Link to={guidebookPath(slug)}
               className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
@@ -464,6 +506,45 @@ export default function V3CheckInPage() {
     return <ChoiceScreen property={property} slug={slug} nightMode={nightMode} onChoose={setStep} />
   }
 
+  // Guest step, no active primary booker found at this property yet — block
+  // rather than let the guest submit unlinked.
+  if (isGuest && bookers !== null && bookers.length === 0) {
+    return (
+      <NightModeCtx.Provider value={nightMode}>
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: t.BG }}>
+          <div className="text-center max-w-sm">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+              style={{ background: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+              <Icon name="person_search" size={26} style={{ color: t.MUTED }} />
+            </div>
+            <h1 className="text-lg font-bold mb-1" style={{ color: t.TEXT }}>No active booking found yet</h1>
+            <p className="text-[13px] mb-6" style={{ color: t.MUTED }}>
+              {bookersError || "We couldn't find any active primary booker for this property yet. Please ask your primary booker to complete their check-in first, then try again."}
+            </p>
+            <button onClick={() => setStep('choice')}
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold hover:underline"
+              style={{ color: t.PRIMARY, background: 'none', border: 'none', cursor: 'pointer' }}>
+              <Icon name="arrow_back" size={14} /> Back
+            </button>
+          </div>
+        </div>
+      </NightModeCtx.Provider>
+    )
+  }
+
+  if (isGuest && bookers === null) {
+    return (
+      <NightModeCtx.Provider value={nightMode}>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: t.BG }}>
+          <div className="flex items-center gap-3" style={{ color: t.MUTED }}>
+            <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+            <span className="text-[13px]">Loading active bookings…</span>
+          </div>
+        </div>
+      </NightModeCtx.Provider>
+    )
+  }
+
   const countOptions = [...Array(31).keys()] // 0–30
 
   return (
@@ -486,7 +567,7 @@ export default function V3CheckInPage() {
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: t.PRIMARY }}>
-                  Check-In · {isPrimary ? 'Primary Booker' : 'Guest'}
+                  Rental Terms · {isPrimary ? 'Primary Booker' : 'Guest'}
                 </p>
                 <p className="font-bold text-[17px] leading-tight" style={{ color: t.TEXT }}>{property.name}</p>
               </div>
@@ -532,6 +613,25 @@ export default function V3CheckInPage() {
                 </p>
               </div>
 
+              {isGuest && (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                    Who's your primary booker? <span style={{ color: 'var(--t-primary)' }}>*</span>
+                  </label>
+                  <select value={selectedBooker} onChange={e => setSelectedBooker(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                    style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}>
+                    <option value="">Select the person who booked this stay…</option>
+                    {bookers.map(b => (
+                      <option key={b.name} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] mt-1.5" style={{ color: t.MUTED }}>
+                    Choosing correctly links your details to their booking.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <FormInput label="First Name" required t={t} nightMode={nightMode}
                   type="text" value={form.firstName}
@@ -555,6 +655,18 @@ export default function V3CheckInPage() {
                   type="tel" value={form.phone}
                   onChange={(e) => setField('phone', e.target.value)}
                   placeholder="+1 (608) 239-3574" />
+              )}
+
+              {isPrimary && (
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput label="Booking Check-In Date" required t={t} nightMode={nightMode}
+                    type="date" value={stayCheckIn}
+                    onChange={(e) => setStayCheckIn(e.target.value)} />
+                  <FormInput label="Booking Check-Out Date" required t={t} nightMode={nightMode}
+                    error={stayCheckIn && stayCheckOut && new Date(stayCheckOut) <= new Date(stayCheckIn) ? 'Must be after check-in date' : ''}
+                    type="date" value={stayCheckOut}
+                    onChange={(e) => setStayCheckOut(e.target.value)} />
+                </div>
               )}
             </div>
 
@@ -655,7 +767,7 @@ export default function V3CheckInPage() {
                 boxShadow: canSubmit ? '0 4px 15px rgba(5,150,105,0.3)' : 'none',
               }}>
               {canSubmit
-                ? '✓  Complete Check-In'
+                ? '✓  Accept Rental Terms'
                 : !allChecked
                   ? `Please agree to all ${rules.length} rules above`
                   : !namesValid
@@ -666,7 +778,11 @@ export default function V3CheckInPage() {
                         ? 'Please enter a valid phone number'
                         : isPrimary && !coGuestsValid
                           ? 'Please complete details for every guest'
-                          : 'Please check your details'}
+                          : isPrimary && !stayDatesValid
+                            ? 'Please enter valid booking check-in and check-out dates'
+                            : isGuest && !bookerValid
+                              ? "Please select your primary booker"
+                              : 'Please check your details'}
             </button>
           </form>
 

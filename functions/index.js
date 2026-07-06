@@ -72,3 +72,63 @@ export const provisionTenant = onCall(async (request) => {
 
   return { tenantId, slug }
 })
+
+// getActivePrimaryBookers: called by the (unauthenticated) guest check-in page
+// to populate the "who's your primary booker?" dropdown. Runs with admin
+// privileges so it can read the guest check-in/checkout collections directly
+// (guests themselves cannot — those collections are anonymous-CREATE-only).
+// Deliberately returns ONLY first/last name for active bookings at that
+// property — no email, phone, or any other guest PII ever leaves this function.
+export const getActivePrimaryBookers = onCall(async (request) => {
+  const tenantId = String(request.data?.tenantId || '').trim()
+  const propertySlug = String(request.data?.propertySlug || '').trim()
+  if (!tenantId || !propertySlug) {
+    throw new HttpsError('invalid-argument', 'tenantId and propertySlug are required.')
+  }
+
+  const norm = (s) => (s || '').trim().toLowerCase()
+  const ts   = (v) => { const t = new Date(v || 0).getTime(); return isNaN(t) ? 0 : t }
+  const keepMine = (r) => r.tenantId === tenantId || (!r.tenantId && tenantId === 'talo')
+
+  const [ciSnap, coSnap] = await Promise.all([
+    db.collection('v2_checkins').where('propertySlug', '==', propertySlug).get(),
+    db.collection('v2_checkouts').where('propertySlug', '==', propertySlug).get(),
+  ])
+  const checkins  = ciSnap.docs.map(d => d.data()).filter(keepMine)
+  const checkouts = coSnap.docs.map(d => d.data()).filter(keepMine)
+
+  // Primary bookers only (checkinRole === 'primary', with a legacy fallback
+  // for records written before that field existed).
+  const primaries = checkins.filter(r =>
+    r.checkinRole === 'primary' || (r.checkinRole == null && norm(r.primaryGuestName) !== '')
+  )
+
+  // Group by primary name, keep the most recent submission per name, and
+  // check it's not already checked out (mirrors src/data/guestRoster.js).
+  const byName = new Map()
+  for (const p of primaries) {
+    const name = (p.primaryGuestName || p.guestName || '').trim()
+    if (!name) continue
+    const key = norm(name)
+    const existing = byName.get(key)
+    if (!existing || ts(p.submittedAt) > ts(existing.submittedAt)) byName.set(key, p)
+  }
+
+  const active = []
+  for (const [key, p] of byName.entries()) {
+    const checkinTs = ts(p.submittedAt)
+    const matchingCheckouts = checkouts.filter(c => norm(c.primaryGuestName) === key)
+    const latestCheckoutTs = matchingCheckouts.length
+      ? Math.max(...matchingCheckouts.map(c => ts(c.checkedOutAt))) : 0
+    const checkedOut = latestCheckoutTs > 0 && latestCheckoutTs > checkinTs
+    if (!checkedOut) {
+      active.push({
+        name: (p.primaryGuestName || p.guestName || '').trim(),
+        firstName: (p.firstName || '').trim(),
+        lastName: (p.lastName || '').trim(),
+      })
+    }
+  }
+
+  return { bookers: active }
+})
