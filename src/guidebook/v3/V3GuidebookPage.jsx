@@ -8,13 +8,47 @@ import { guidebookPath } from '../../data/tenant'
 // Order: admin's own `_live` (so an admin viewing the guidebook sees their
 // latest publish instantly) → guest cache (Firestore-hydrated, for visitors
 // who never edited) → admin draft (for unpublished local previews).
+// Preview (admin "Preview guidebook") reads the draft first so unpublished work
+// shows; guests never carry the flag and only see published content.
+function isV3Preview() {
+  try {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('preview') === '1'
+      || sessionStorage.getItem('v3_preview') === '1'
+  } catch { return false }
+}
+
 export function readV3Data() {
   try {
-    const raw = localStorage.getItem(ADMIN_V3_LIVE_KEY)
-              || localStorage.getItem('talo_v3_guest_cache')
-              || localStorage.getItem('talo_admin_v3_draft')
-    return raw ? JSON.parse(raw) : null
+    const order = isV3Preview()
+      ? ['talo_admin_v3_draft', ADMIN_V3_LIVE_KEY, 'talo_v3_guest_cache']
+      : [ADMIN_V3_LIVE_KEY, 'talo_v3_guest_cache', 'talo_admin_v3_draft']
+    for (const k of order) {
+      const raw = localStorage.getItem(k)
+      if (raw) return JSON.parse(raw)
+    }
+    return null
   } catch { return null }
+}
+
+// Filter a raw blocks array for one section+property, matching contentStore's
+// rules. Used for preview so draft content shows directly from the draft, immune
+// to firebaseSync overwriting contentStore with published data.
+function blocksForSectionFrom(blocks, sectionKey, propertySlug) {
+  return (blocks || [])
+    .filter((b) => {
+      if (b.sectionKey !== sectionKey) return false
+      if (b.type === 'shared') {
+        if (!b.sharedWith || b.sharedWith === 'all') return true
+        if (Array.isArray(b.sharedWith)) return b.sharedWith.includes(propertySlug)
+        return true
+      }
+      return b.type === 'property' && b.propertySlug === propertySlug
+    })
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'shared' ? -1 : 1
+      return (a.order || 99) - (b.order || 99)
+    })
 }
 import Icon from '../../components/Icon'
 
@@ -461,13 +495,16 @@ export default function V3GuidebookPage() {
   useEffect(() => {
     const load = () => {
       const v3data = readV3Data()
+      const preview = isV3Preview()
       const secs = buildGuidebookSections(v3data, slug)
       const all = {}
       secs.forEach((s) => {
         if (!s.page && !s.virtual) {
-          all[s.key] = applyPropertyBlockOrder(
-            contentStore.getBlocksForSection(s.key, slug), slug, s.key, v3data
-          )
+          // Preview reads blocks straight from the draft; guests use contentStore.
+          const raw = preview
+            ? blocksForSectionFrom(v3data?.blocks, s.key, slug)
+            : contentStore.getBlocksForSection(s.key, slug)
+          all[s.key] = applyPropertyBlockOrder(raw, slug, s.key, v3data)
         }
       })
       setSections(secs)

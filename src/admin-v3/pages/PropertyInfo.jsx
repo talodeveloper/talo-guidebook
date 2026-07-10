@@ -11,7 +11,7 @@ import { guidebookPath } from '../../data/tenant'
 // Uses ?preview_theme= URL param so it doesn't affect the saved theme.
 function ThemePhonePreview({ themeId, slug }) {
   const iframeRef = useRef(null)
-  const src = `${guidebookPath(slug)}?preview_theme=${themeId}`
+  const src = `${guidebookPath(slug)}?preview_theme=${themeId}&preview=1`
 
   // Reload iframe when theme changes (src change alone doesn't always trigger)
   useEffect(() => {

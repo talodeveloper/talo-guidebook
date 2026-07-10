@@ -4,9 +4,11 @@ import { adminV3Store, BASE_PROPERTY_SLUGS } from '../../data/adminV3Store'
 import { getHostMode, guidebookPath } from '../../data/tenant'
 import Icon from '../../components/Icon'
 
-// Full href to the guest guidebook — tenant subdomain → /{slug}
+// Full href to the guest guidebook — tenant subdomain → /{slug}. `?preview=1`
+// makes it render the DRAFT (unpublished work), so an admin can preview a new or
+// template-loaded property before publishing.
 const guidebookHref = (slug) =>
-  `${import.meta.env.BASE_URL.replace(/\/$/, '')}${guidebookPath(slug)}`
+  `${import.meta.env.BASE_URL.replace(/\/$/, '')}${guidebookPath(slug)}?preview=1`
 
 const COOL_OFF_DAYS = 30
 

@@ -43,12 +43,17 @@ export default function V3FAQPage() {
   const [openIndex, setOpenIndex] = useState(null)
   const logo = resolveGuidebookLogo(readV3Data())
 
-  // Merged list: global + property questions in curated order, disabled removed
+  // Merged list: global + property questions in curated order, disabled removed.
+  // Preview reads the draft first so unpublished FAQ shows.
   let faqs = FAQ_DATA[slug] || []
   try {
-    const liveRaw = localStorage.getItem(ADMIN_V3_LIVE_KEY)
-                 || localStorage.getItem('talo_v3_guest_cache')
-                 || localStorage.getItem('talo_admin_v3_draft')
+    const preview = new URLSearchParams(window.location.search).get('preview') === '1'
+                 || sessionStorage.getItem('v3_preview') === '1'
+    const order = preview
+      ? ['talo_admin_v3_draft', ADMIN_V3_LIVE_KEY, 'talo_v3_guest_cache']
+      : [ADMIN_V3_LIVE_KEY, 'talo_v3_guest_cache', 'talo_admin_v3_draft']
+    let liveRaw = null
+    for (const k of order) { liveRaw = localStorage.getItem(k); if (liveRaw) break }
     if (liveRaw) {
       const live = JSON.parse(liveRaw)
       if (live?.faq?.[slug] || live?.globalFaq?.length) faqs = buildFaqList(live, slug)
