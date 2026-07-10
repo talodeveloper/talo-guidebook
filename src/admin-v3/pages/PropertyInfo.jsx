@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { adminV3Store } from '../../data/adminV3Store'
+import { adminV3Store, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
 import Icon from '../../components/Icon'
 import ImagePicker from '../components/ImagePicker'
 import { THEMES, THEME_CATEGORIES } from '../../data/themes'
@@ -288,7 +288,6 @@ export default function PropertyInfoV3() {
 
   // ── Check-In Welcome ───────────────────────────────────────────────────────
   const DEFAULT_CHECKIN_WELCOME = "Welcome! Please review each house rule below and tap the checkbox next to every rule to confirm you've read and agreed to it. All guests staying at this property are expected to follow these rules. Thank you for helping us keep this space special for everyone."
-  const DEFAULT_CHECKIN_OFFER = "🎁 One more thing! Ask every adult (18+) in your group to complete their own check-in using this same link — when everyone signs in, you'll earn a $50 credit toward your next stay with TALO Rentals."
   const [welcomeText, setWelcomeText] = useState(info.checkInWelcome || DEFAULT_CHECKIN_WELCOME)
   const [offerText, setOfferText] = useState(info.checkInOfferText || DEFAULT_CHECKIN_OFFER)
   const welcomeSaved = saved === 'welcome'

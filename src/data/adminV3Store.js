@@ -156,7 +156,7 @@ function writeJSON(key, val) {
 
 const DEFAULT_CHECKIN_WELCOME = "Welcome! Please review each house rule below and tap the checkbox next to every rule to confirm you've read and agreed to it. All guests staying at this property are expected to follow these rules. Thank you for helping us keep this space special for everyone."
 
-export const DEFAULT_CHECKIN_OFFER = "🎁 One more thing! Ask every adult (18+) in your group to complete their own check-in using this same link — when everyone signs in, you'll earn a $50 credit toward your next stay with TALO Rentals."
+export const DEFAULT_CHECKIN_OFFER = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. (Edit this in Property Info to add your own check-in offer or message for guests — or clear it to hide this banner.)"
 
 // ── Starter template ─────────────────────────────────────────────────────────
 // Generic, editable placeholder content used by loadStarterTemplate() so a new
