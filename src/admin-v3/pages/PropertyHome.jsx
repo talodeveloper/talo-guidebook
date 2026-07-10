@@ -115,6 +115,9 @@ export default function PropertyHomeV3() {
   const [propertiesList, setPropertiesList] = useState(adminV3Store.getPropertiesList())
   const [sectionConfig, setSectionConfig] = useState(adminV3Store.getSectionConfig(slug))
   const [confirmStatus, setConfirmStatus] = useState(false)
+  const [isEmpty, setIsEmpty] = useState(adminV3Store.isPropertyEmpty(slug))
+  const [loadedMsg, setLoadedMsg] = useState(null)
+  const [dupSource, setDupSource] = useState('')
 
   useEffect(() => {
     // Re-fetch immediately when navigating between properties (slug change),
@@ -123,10 +126,35 @@ export default function PropertyHomeV3() {
       setInfo(adminV3Store.getPropertyInfo(slug))
       setPropertiesList(adminV3Store.getPropertiesList())
       setSectionConfig(adminV3Store.getSectionConfig(slug))
+      setIsEmpty(adminV3Store.isPropertyEmpty(slug))
     }
     refresh()
     return adminV3Store.subscribe(refresh)
   }, [slug])
+
+  // Reset the source picker when switching properties
+  useEffect(() => { setDupSource('') }, [slug])
+
+  const handleLoadTemplate = () => {
+    if (adminV3Store.loadStarterTemplate(slug)) {
+      setLoadedMsg('Starter template loaded! Open any section below to edit the text and replace the placeholder photos, then Publish when you\'re ready.')
+      setTimeout(() => setLoadedMsg(null), 5000)
+    }
+  }
+
+  const handleDuplicate = () => {
+    if (!dupSource) return
+    if (adminV3Store.duplicateGuidebook(dupSource, slug)) {
+      setLoadedMsg('Guidebook duplicated! Everything was copied in — edit the details that differ for this property, then Publish.')
+      setDupSource('')
+      setTimeout(() => setLoadedMsg(null), 5000)
+    }
+  }
+
+  // Other filled properties this empty one can be duplicated from
+  const dupSources = propertiesList
+    .filter(p => p.slug !== slug && !adminV3Store.isPropertyEmpty(p.slug))
+    .map(p => ({ slug: p.slug, name: adminV3Store.getPropertyInfo(p.slug).name || p.slug }))
 
   const propEntry = propertiesList.find(p => p.slug === slug)
   const isActive = propEntry?.status === 'active'
@@ -184,6 +212,70 @@ export default function PropertyHomeV3() {
           )}
         </div>
       </div>
+
+      {/* Empty guidebook — offer a starter template and/or duplicating one */}
+      {isEmpty && (
+        <div className="mb-8 rounded-2xl border border-orange-200 p-5"
+          style={{ background: 'linear-gradient(135deg, #FFF7ED, #FEF3C7)' }}>
+          <p className="text-sm font-bold text-slate-900 mb-1">This guidebook is empty — get a head start</p>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed max-w-xl">
+            Rather than building from scratch, start from a ready-made version and just edit the parts that differ.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Option A — starter template */}
+            <div className="bg-white/70 rounded-xl border border-orange-100 p-4 flex flex-col">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Icon name="auto_awesome" size={16} className="text-orange-600" />
+                <p className="text-sm font-bold text-slate-900">Starter template</p>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed flex-1">
+                Sample text and placeholder photos in every section. Swap in your own words and pictures.
+              </p>
+              <button onClick={handleLoadTemplate}
+                className="mt-3 flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                <Icon name="auto_awesome" size={15} className="text-white" />
+                Load starter template
+              </button>
+            </div>
+
+            {/* Option B — duplicate an existing guidebook (only if one exists) */}
+            {dupSources.length > 0 && (
+              <div className="bg-white/70 rounded-xl border border-orange-100 p-4 flex flex-col">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Icon name="content_copy" size={16} className="text-orange-600" />
+                  <p className="text-sm font-bold text-slate-900">Duplicate an existing guidebook</p>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed flex-1">
+                  Copy everything from one of your other properties — content, FAQ, activities, host &amp; display
+                  settings — then tweak the differences. (Name, address and Wi-Fi stay this property's own.)
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <select value={dupSource} onChange={e => setDupSource(e.target.value)}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300">
+                    <option value="">Choose a property…</option>
+                    {dupSources.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+                  </select>
+                  <button onClick={handleDuplicate} disabled={!dupSource}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40 flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+                    <Icon name="content_copy" size={15} className="text-white" />
+                    Duplicate
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {loadedMsg && (
+        <div className="mb-8 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 flex items-center gap-3">
+          <Icon name="check_circle" size={18} className="text-green-600 flex-shrink-0" />
+          <p className="text-sm text-green-800">{loadedMsg} <strong>Publish</strong> from the top bar when ready.</p>
+        </div>
+      )}
 
       {/* Quick action cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">

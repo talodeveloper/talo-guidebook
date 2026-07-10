@@ -194,11 +194,13 @@ export default function GlobalContentV3() {
   const [blocks, setBlocks] = useState([])
   const [globalFaq, setGlobalFaq] = useState([])
   const [globalHero, setGlobalHero] = useState(adminV3Store.getGlobalHero())
+  const [globalLogo, setGlobalLogo] = useState(adminV3Store.getGlobalLogo())
 
   const load = useCallback(() => {
     setBlocks(adminV3Store.getBlocksForSection('house_rules', null).filter(b => b.type === 'shared'))
     setGlobalFaq(adminV3Store.getGlobalFaq())
     setGlobalHero(adminV3Store.getGlobalHero())
+    setGlobalLogo(adminV3Store.getGlobalLogo())
   }, [])
 
   useEffect(() => { load(); return adminV3Store.subscribe(load) }, [load])
@@ -227,6 +229,56 @@ export default function GlobalContentV3() {
         <p className="text-xs text-amber-700">
           These rules appear in the <strong>House Rules</strong> section of every guidebook. Changes here affect all properties at once.
         </p>
+      </div>
+
+      {/* ── Guidebook Logo ───────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-2 mt-2">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #1E3A8A, #2563EB)' }}>
+          <Icon name="branding_watermark" size={18} className="text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Guidebook Logo</h2>
+          <p className="text-xs text-slate-500">Appears in the header of every one of your property guidebooks</p>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-12 mt-4">
+        <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4 flex items-start gap-2">
+          <Icon name="info" size={13} className="text-blue-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-blue-700">
+            Upload a logo <strong>image</strong> (a transparent PNG works best), <strong>or</strong> just type a
+            text wordmark below. If you set both, the image is used. If you set neither, no logo shows.
+          </p>
+        </div>
+
+        <p className="text-xs font-semibold text-slate-600 mb-2">Logo image</p>
+        <div className="max-w-xs">
+          <ImagePicker
+            value={globalLogo.image ? [{ src: globalLogo.image, path: globalLogo.imagePath }] : []}
+            slug="global"
+            blockId="logo"
+            maxImages={1}
+            profile="logo"
+            onChange={imgs => {
+              const img = imgs[0]
+              adminV3Store.setGlobalLogo({ image: img?.src || null, imagePath: img?.path || null })
+            }}
+          />
+        </div>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">or</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Text wordmark</label>
+        <input type="text" value={globalLogo.wordmark || ''}
+          onChange={e => adminV3Store.setGlobalLogo({ wordmark: e.target.value })}
+          placeholder="e.g. Sunrise Rentals"
+          maxLength={40}
+          className="w-full max-w-xs px-3 py-2 text-sm rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300" />
+        <p className="text-[11px] text-slate-400 mt-1.5">Used only when no logo image is uploaded.</p>
       </div>
 
       {/* ── Global Hero Banner ───────────────────────────────────────────── */}

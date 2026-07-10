@@ -158,6 +158,58 @@ const DEFAULT_CHECKIN_WELCOME = "Welcome! Please review each house rule below an
 
 export const DEFAULT_CHECKIN_OFFER = "🎁 One more thing! Ask every adult (18+) in your group to complete their own check-in using this same link — when everyone signs in, you'll earn a $50 credit toward your next stay with TALO Rentals."
 
+// ── Starter template ─────────────────────────────────────────────────────────
+// Generic, editable placeholder content used by loadStarterTemplate() so a new
+// property starts as a fully-shaped guidebook the admin reshapes, rather than a
+// blank page. All text is obviously-a-placeholder and all images point at the
+// bundled section placeholders in /public/images/template/. Contains NO real
+// property data — safe to apply to any tenant.
+const TPL_IMG = (name, caption) => [{ src: `/images/template/${name}.svg`, caption }]
+const TEMPLATE_SECTIONS = [
+  { sectionKey: 'welcome', title: 'Welcome!',
+    body: `<p>Welcome, and thank you for booking with us! We're thrilled to host you. This guidebook has everything you'll need for a smooth, comfortable stay — from getting in the door to our favorite local spots.</p><p><em>Replace this with your own warm welcome message.</em></p>`,
+    img: TPL_IMG('welcome', 'Your property — add a photo') },
+  { sectionKey: 'entry', title: 'Getting Inside',
+    body: `<ol><li>Head to the main entrance.</li><li>Your access code will be sent to you on the day of check-in.</li><li>Enter the code on the keypad.</li><li>The door will unlock — welcome home!</li></ol><p><em>Edit these steps to match your property's entry.</em></p>`,
+    img: TPL_IMG('entry', 'Entrance — add a photo') },
+  { sectionKey: 'parking', title: 'Parking',
+    body: `<p>Free street parking is usually available right out front. There is also a driveway spot for one vehicle.</p><p><em>Update with your property's real parking details.</em></p>`,
+    img: TPL_IMG('parking', 'Parking — add a photo') },
+  { sectionKey: 'wifi', title: 'Wi-Fi',
+    body: `<p>The Wi-Fi network name and password are on the Property Info card. If you have any trouble connecting, just reach out to your host.</p><p><em>Set your network name and password in Property Info.</em></p>`,
+    img: TPL_IMG('wifi', 'Wi-Fi — add a photo of your router if helpful') },
+  { sectionKey: 'house_rules', title: 'Quiet Hours',
+    body: `<p>Please keep noise to a minimum between <strong>10:00 PM and 8:00 AM</strong> out of respect for our neighbors.</p><p><em>Edit or remove this rule as needed.</em></p>`, img: [] },
+  { sectionKey: 'house_rules', title: 'No Smoking',
+    body: `<p>This is a strictly non-smoking property, indoors and out. A cleaning fee applies if smoking is detected.</p><p><em>Edit or remove this rule as needed.</em></p>`, img: [] },
+  { sectionKey: 'the_home', title: 'Living Space',
+    body: `<p>Relax in the comfortable living area with plenty of seating and a smart TV. Extra blankets are in the closet.</p><p><em>Describe your living space and add real photos.</em></p>`,
+    img: TPL_IMG('livingroom', 'Living space — add a photo') },
+  { sectionKey: 'the_home', title: 'Kitchen',
+    body: `<p>The kitchen is fully equipped with everything you need to cook — cookware, dishes, coffee maker, and basic spices.</p><p><em>List what your kitchen offers and add photos.</em></p>`,
+    img: TPL_IMG('kitchen', 'Kitchen — add a photo') },
+  { sectionKey: 'additional_space', title: 'Bedrooms',
+    body: `<p>Rest easy in our comfortable bedrooms with fresh linens and ample closet space.</p><p><em>Describe your bedrooms and add photos.</em></p>`,
+    img: TPL_IMG('bedroom', 'Bedroom — add a photo') },
+  { sectionKey: 'outdoor_spaces', title: 'Outdoor Space',
+    body: `<p>Enjoy the outdoor area — perfect for morning coffee or evening relaxation.</p><p><em>Describe your patio, yard, or balcony and add photos.</em></p>`,
+    img: TPL_IMG('outdoor', 'Outdoor space — add a photo') },
+  { sectionKey: 'services_maintenance', title: 'Trash, Recycling & Essentials',
+    body: `<p>Trash and recycling bins are located outside. Collection day is typically mid-week. Cleaning supplies are under the sink.</p><p><em>Update with your property's specifics.</em></p>`,
+    img: TPL_IMG('services', 'Add a photo if helpful') },
+  { sectionKey: 'transport', title: 'Getting Around',
+    body: `<p>Rideshare and taxis are readily available. The nearest transit stop is a short walk away, and the area is very walkable.</p><p><em>Add local transport options guests will find useful.</em></p>`,
+    img: TPL_IMG('transport', 'Getting around — add a photo') },
+  { sectionKey: 'checkout', title: 'Before You Go',
+    body: `<ol><li>Start the dishwasher if it's full.</li><li>Take out any trash to the outside bins.</li><li>Turn off all lights and the AC/heat.</li><li>Close and lock all windows and doors.</li><li>Leave the keys where you found them.</li></ol><p><em>Edit this checklist to match your check-out steps.</em></p>`,
+    img: [] },
+]
+const TEMPLATE_FAQ = [
+  { q: 'What time is check-in and check-out?', a: 'Check-in is at 4:00 PM and check-out is at 11:00 AM. Edit these times in Property Info.' },
+  { q: 'Is early check-in or late check-out available?', a: 'Reach out to your host — we\'ll do our best to accommodate based on the schedule.' },
+  { q: 'Where do I park?', a: 'See the Parking section of this guidebook for details.' },
+]
+
 function buildDefaultPropertyInfo(slug) {
   const p = defaultProperties[slug]
   if (!p) return {}
@@ -227,6 +279,10 @@ function buildDefaultDraft() {
     // Each field is null until admin uploads, in which case the built-in
     // /images/newhero.png and /images/nightview.png are used.
     globalHero: { day: null, dayPath: null, night: null, nightPath: null },
+    // Global guidebook logo — shown in the guidebook header across all this
+    // tenant's properties. `image` = uploaded logo URL, else `wordmark` text,
+    // else nothing is shown.
+    globalLogo: { image: null, imagePath: null, wordmark: '' },
   }
 }
 
@@ -244,6 +300,10 @@ function buildEmptyDraft() {
     propertyList: [],
     propertySections: {},
     globalHero: { day: null, dayPath: null, night: null, nightPath: null },
+    // Global guidebook logo — shown in the guidebook header across all this
+    // tenant's properties. `image` = uploaded logo URL, else `wordmark` text,
+    // else nothing is shown.
+    globalLogo: { image: null, imagePath: null, wordmark: '' },
     activityCategories: JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES)),
     __fromDefaults: true,
   }
@@ -709,6 +769,9 @@ export const adminV3Store = {
     if (JSON.stringify(_draft?.globalHero) !== JSON.stringify(_live?.globalHero)) {
       changes.push({ label: 'Global Hero Banner', property: 'Global' })
     }
+    if (JSON.stringify(_draft?.globalLogo) !== JSON.stringify(_live?.globalLogo)) {
+      changes.push({ label: 'Guidebook Logo', property: 'Global' })
+    }
     return changes
   },
 
@@ -872,6 +935,166 @@ export const adminV3Store = {
     _draft.globalHero = { ...(_draft.globalHero || {}), ...updates }
     writeJSON(DRAFT_KEY, _draft)
     notify()
+  },
+
+  // ── Global logo ────────────────────────────────────────────────────────────
+
+  getGlobalLogo() {
+    return _draft?.globalLogo || { image: null, imagePath: null, wordmark: '' }
+  },
+
+  setGlobalLogo(updates) {
+    _draft.globalLogo = { ...(_draft.globalLogo || { image: null, imagePath: null, wordmark: '' }), ...updates }
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+  },
+
+  // ── Starter template ───────────────────────────────────────────────────────
+
+  // A property is "empty" (safe to load the template onto) when it has no
+  // content blocks and no FAQ items of its own.
+  isPropertyEmpty(slug) {
+    const hasBlocks = (_draft?.blocks || []).some(
+      b => b.type === 'property' && b.propertySlug === slug
+    )
+    const hasFaq = ((_draft?.faq?.[slug]) || []).length > 0
+    return !hasBlocks && !hasFaq
+  },
+
+  // Fill an EMPTY property with the generic starter template (placeholder text
+  // + bundled placeholder images) so the admin can edit rather than build from
+  // scratch. Refuses if the property already has any content, so it can never
+  // clobber real work. Returns false if blocked, true on success.
+  loadStarterTemplate(slug) {
+    if (!this.isPropertyEmpty(slug)) return false
+    if (!_draft.blocks) _draft.blocks = []
+
+    // Track per-section order so multiple blocks in one section stack cleanly.
+    const orderBySection = {}
+    const now = Date.now()
+    let n = 0
+    for (const t of TEMPLATE_SECTIONS) {
+      orderBySection[t.sectionKey] = (orderBySection[t.sectionKey] || 0) + 1
+      _draft.blocks.push({
+        id: `tmpl-${slug}-${now}-${n++}`,
+        sectionKey: t.sectionKey,
+        type: 'property',
+        propertySlug: slug,
+        title: t.title,
+        body: t.body,
+        images: JSON.parse(JSON.stringify(t.img || [])),
+        order: orderBySection[t.sectionKey],
+      })
+    }
+
+    // Seed a few starter FAQ items.
+    if (!_draft.faq) _draft.faq = {}
+    _draft.faq[slug] = TEMPLATE_FAQ.map((it, i) => ({
+      id: `tmpl-faq-${slug}-${i}`, q: it.q, a: it.a,
+    }))
+
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+    return true
+  },
+
+  // Copy an existing, filled property's entire guidebook into an EMPTY property
+  // so the admin starts from a full clone and edits the differences. Copies all
+  // content (blocks, FAQ, section config, block ordering, disabled blocks,
+  // activity curation, image overrides) plus host + display settings. Does NOT
+  // copy the target's own name/address or its Wi-Fi. Blocks/FAQ get fresh ids
+  // (re-pointed to the target); ordering/overrides/curation are remapped to
+  // those new ids. Refuses unless target is empty and source has content.
+  duplicateGuidebook(sourceSlug, targetSlug) {
+    if (sourceSlug === targetSlug) return false
+    if (!this.isPropertyEmpty(targetSlug)) return false
+    if (this.isPropertyEmpty(sourceSlug)) return false
+    const clone = (o) => (o == null ? o : JSON.parse(JSON.stringify(o)))
+    const now = Date.now()
+
+    // 1. Property content blocks → new ids, re-pointed to target
+    const blockIdMap = {}
+    let i = 0
+    const srcBlocks = (_draft.blocks || []).filter(b => b.type === 'property' && b.propertySlug === sourceSlug)
+    const newBlocks = srcBlocks.map(b => {
+      const nid = `dup-${targetSlug}-${now}-${i++}`
+      blockIdMap[b.id] = nid
+      return { ...clone(b), id: nid, propertySlug: targetSlug }
+    })
+    _draft.blocks = [...(_draft.blocks || []), ...newBlocks]
+
+    // 2. Block ordering (remap ids)
+    if (_draft.propertyBlockOrder?.[sourceSlug]) {
+      _draft.propertyBlockOrder = _draft.propertyBlockOrder || {}
+      const remapped = {}
+      for (const [sectionKey, ids] of Object.entries(_draft.propertyBlockOrder[sourceSlug])) {
+        remapped[sectionKey] = ids.map(id => blockIdMap[id] || id)
+      }
+      _draft.propertyBlockOrder[targetSlug] = remapped
+    }
+
+    // 3. Disabled blocks (remap ids)
+    if (_draft.disabledBlocks?.[sourceSlug]) {
+      _draft.disabledBlocks = _draft.disabledBlocks || {}
+      _draft.disabledBlocks[targetSlug] = _draft.disabledBlocks[sourceSlug].map(id => blockIdMap[id] || id)
+    }
+
+    // 4. Per-property image overrides (keyed by block id → remap keys)
+    if (_draft.propertyImageOverrides?.[sourceSlug]) {
+      _draft.propertyImageOverrides = _draft.propertyImageOverrides || {}
+      const remapped = {}
+      for (const [blockId, imgs] of Object.entries(_draft.propertyImageOverrides[sourceSlug])) {
+        remapped[blockIdMap[blockId] || blockId] = clone(imgs)
+      }
+      _draft.propertyImageOverrides[targetSlug] = remapped
+    }
+
+    // 5. Section config (section keys are stable — copy as-is)
+    if (_draft.propertySectionConfig?.[sourceSlug]) {
+      _draft.propertySectionConfig = _draft.propertySectionConfig || {}
+      _draft.propertySectionConfig[targetSlug] = clone(_draft.propertySectionConfig[sourceSlug])
+    }
+
+    // 6. Activity curation (activity ids are stable — copy as-is)
+    if (_draft.propertyCuration?.[sourceSlug]) {
+      _draft.propertyCuration = _draft.propertyCuration || {}
+      _draft.propertyCuration[targetSlug] = clone(_draft.propertyCuration[sourceSlug])
+    }
+
+    // 7. Local FAQ → new ids, with curation remap
+    const faqIdMap = {}
+    if (_draft.faq?.[sourceSlug]?.length) {
+      _draft.faq = _draft.faq || {}
+      _draft.faq[targetSlug] = _draft.faq[sourceSlug].map((it, idx) => {
+        const nid = `dup-faq-${targetSlug}-${now}-${idx}`
+        faqIdMap[it.id] = nid
+        return { ...clone(it), id: nid }
+      })
+    }
+    if (_draft.faqCuration?.[sourceSlug]) {
+      _draft.faqCuration = _draft.faqCuration || {}
+      _draft.faqCuration[targetSlug] = _draft.faqCuration[sourceSlug].map(e =>
+        e.source === 'local' ? { ...e, id: faqIdMap[e.id] || e.id } : { ...e }
+      )
+    }
+
+    // 8. Property info — host + display settings only (keep target's own
+    //    name/address/Wi-Fi and operational fields).
+    const src = _draft.properties?.[sourceSlug]
+    if (src) {
+      _draft.properties = _draft.properties || {}
+      _draft.properties[targetSlug] = {
+        ...(_draft.properties[targetSlug] || {}),
+        ownerName: src.ownerName, ownerPhone: src.ownerPhone, ownerEmail: src.ownerEmail,
+        showPropertyCard: src.showPropertyCard, showWifiCard: src.showWifiCard, showHostCard: src.showHostCard,
+        checkInEnabled: src.checkInEnabled, showCheckoutTimeBanner: src.showCheckoutTimeBanner,
+        checkInWelcome: src.checkInWelcome, checkInOfferText: src.checkInOfferText,
+      }
+    }
+
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+    return true
   },
 
   // ── Global FAQ ─────────────────────────────────────────────────────────────

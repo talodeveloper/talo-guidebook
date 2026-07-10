@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" width="800" height="560" role="img" aria-label="Outdoor Space">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF2F7"/>
+      <stop offset="1" stop-color="#DDE4EC"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="560" fill="url(#bg)"/>
+  <g fill="none" stroke="#9AA7B8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" transform="translate(400 250)">
+    <circle cx="0" cy="-40" r="45"/><line x1="0" y1="-120" x2="0" y2="-100"/><line x1="0" y1="20" x2="0" y2="40"/><line x1="-80" y1="-40" x2="-60" y2="-40"/><line x1="60" y1="-40" x2="80" y2="-40"/><line x1="-57" y1="-97" x2="-43" y2="-83"/><line x1="43" y1="-83" x2="57" y2="-97"/><path d="M-130 90 L130 90" stroke-width="16"/>
+  </g>
+  <text x="400" y="470" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="26" font-weight="700" fill="#8492A6">Outdoor Space</text>
+  <text x="400" y="506" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="20" fill="#A6B2C2">Sample image — tap to replace with your own photo</text>
+</svg>

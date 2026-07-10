@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useOutletContext, useParams, Link } from 'react-router-dom'
 import Icon from '../../components/Icon'
-import { NightModeCtx, V3RightSidebar, ActivityCard, readV3Data, buildGuidebookSections } from './V3GuidebookPage'
+import { NightModeCtx, V3RightSidebar, ActivityCard, readV3Data, buildGuidebookSections, resolveGuidebookLogo } from './V3GuidebookPage'
 import { ACTIVITY_CATEGORIES } from '../../data/adminV3Store'
 import { guidebookPath } from '../../data/tenant'
 
@@ -71,6 +71,7 @@ export default function V3ActivityPage() {
   const v3data = readV3Data()
   const categories = v3data?.activityCategories?.length ? v3data.activityCategories : ACTIVITY_CATEGORIES
   const allActivities = v3data?.activities || []
+  const logo = resolveGuidebookLogo(v3data)
 
   // Activities visible for this property in curated order
   const visibleFor = (catKey) => {
@@ -111,7 +112,11 @@ export default function V3ActivityPage() {
               <Icon name="arrow_back" size={16} className="text-white/80" />
               Back to Guidebook
             </Link>
-            <span className="text-white font-black text-lg tracking-[0.35em] uppercase">TALO</span>
+            {logo.image ? (
+              <img src={logo.image} alt="Logo" style={{ height: 26, width: 'auto', maxWidth: 160, objectFit: 'contain' }} />
+            ) : logo.wordmark ? (
+              <span className="text-white font-black text-lg tracking-[0.18em] uppercase">{logo.wordmark}</span>
+            ) : <span />}
           </div>
         </div>
 

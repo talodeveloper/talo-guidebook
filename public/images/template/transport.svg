@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" width="800" height="560" role="img" aria-label="Getting Around">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF2F7"/>
+      <stop offset="1" stop-color="#DDE4EC"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="560" fill="url(#bg)"/>
+  <g fill="none" stroke="#9AA7B8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" transform="translate(400 250)">
+    <rect x="-110" y="-80" width="220" height="150" rx="16"/><line x1="-110" y1="10" x2="110" y2="10"/><circle cx="-60" cy="95" r="18"/><circle cx="60" cy="95" r="18"/><line x1="-70" y1="-45" x2="70" y2="-45"/>
+  </g>
+  <text x="400" y="470" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="26" font-weight="700" fill="#8492A6">Getting Around</text>
+  <text x="400" y="506" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="20" fill="#A6B2C2">Sample image — tap to replace with your own photo</text>
+</svg>

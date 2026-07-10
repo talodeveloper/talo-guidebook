@@ -49,6 +49,17 @@ const resolveImg = (url) => {
   return url
 }
 
+// Resolve the tenant's global guidebook logo from published data.
+// Returns { image, wordmark }: image (ready-to-use URL) wins if set; else the
+// text wordmark; else both null/'' → callers render nothing.
+export function resolveGuidebookLogo(v3data) {
+  const gl = v3data?.globalLogo || {}
+  return {
+    image: gl.image ? imgUrl(gl.image) : null,
+    wordmark: (gl.wordmark || '').trim(),
+  }
+}
+
 // CSS custom properties are injected on :root by V3GuidebookLayout (day theme)
 // or NIGHT_VARS (when night mode is on). Components reference var(--t-*) strings.
 
@@ -419,6 +430,9 @@ export default function V3GuidebookPage() {
   const showPropertyCard = property.showPropertyCard !== false
   const checkInEnabled   = property.checkInEnabled !== false
 
+  // Tenant's global logo (image | wordmark | none) for the hero overlay
+  const logo = resolveGuidebookLogo(readV3Data())
+
   // t uses CSS variable references — resolved at paint time from :root vars injected by V3GuidebookLayout
   const t = {
     BG:       'var(--t-bg)',
@@ -581,11 +595,18 @@ export default function V3GuidebookPage() {
           {nightMode ? 'Day' : 'Night'}
         </button>
 
-        <div className="absolute z-10" style={{ top: 10, left: 10, width: 'clamp(180px, 40%, 480px)', transform: 'translateY(-30%)' }}>
-          <img src={imgUrl('/images/talo-logo.png')} alt="TALO Rentals"
-            style={{ width: '100%', height: 'auto', maxHeight: 240, objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 14px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.6))' }} />
-        </div>
+        {logo.image ? (
+          <div className="absolute z-10" style={{ top: 10, left: 10, width: 'clamp(180px, 40%, 480px)', transform: 'translateY(-30%)' }}>
+            <img src={logo.image} alt="Guidebook logo"
+              style={{ width: '100%', height: 'auto', maxHeight: 240, objectFit: 'contain',
+                filter: 'drop-shadow(0 2px 14px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.6))' }} />
+          </div>
+        ) : logo.wordmark ? (
+          <div className="absolute z-10" style={{ top: 14, left: 16 }}>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 'clamp(18px, 3vw, 30px)',
+              letterSpacing: '0.12em', textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{logo.wordmark}</span>
+          </div>
+        ) : null}
 
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 px-4">
           <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 'clamp(11px, 1.4vw, 14px)', fontWeight: 700,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
-import { NightModeCtx, readV3Data } from './V3GuidebookPage'
+import { NightModeCtx, readV3Data, resolveGuidebookLogo } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
@@ -66,6 +66,8 @@ function FormInput({ label, required, optional, error, t, nightMode, ...props })
 function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offerText, isPrimary }) {
   const t = buildTheme()
   const fullName = `${data.firstName} ${data.lastName}`.trim()
+  // Brand label on the printed agreement: tenant wordmark, else property name.
+  const brandLabel = resolveGuidebookLogo(readV3Data()).wordmark || property.name
   return (
     <NightModeCtx.Provider value={nightMode}>
       <style>{`
@@ -106,7 +108,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
 
           <div className="rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
             <div className="ci-print-show mb-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>TALO Rentals</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>{brandLabel}</p>
               <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--t-text)' }}>House Rules Agreement</h2>
               <p className="text-[13px]" style={{ color: 'var(--t-muted)' }}>{property.name} · {property.address}</p>
               <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />

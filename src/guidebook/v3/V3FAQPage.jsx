@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { FAQ_DATA } from '../../data/faqData'
 import Icon from '../../components/Icon'
-import { NightModeCtx, V3RightSidebar, readV3Data, buildGuidebookSections } from './V3GuidebookPage'
+import { NightModeCtx, V3RightSidebar, readV3Data, buildGuidebookSections, resolveGuidebookLogo } from './V3GuidebookPage'
 import { ADMIN_V3_LIVE_KEY, buildFaqList } from '../../data/adminV3Store'
 import { guidebookPath } from '../../data/tenant'
 
@@ -41,6 +41,7 @@ export default function V3FAQPage() {
   const { property, nightMode } = useOutletContext()
   const { slug } = useParams()
   const [openIndex, setOpenIndex] = useState(null)
+  const logo = resolveGuidebookLogo(readV3Data())
 
   // Merged list: global + property questions in curated order, disabled removed
   let faqs = FAQ_DATA[slug] || []
@@ -81,7 +82,11 @@ export default function V3FAQPage() {
               <Icon name="arrow_back" size={16} className="text-white/80" />
               Back to Guidebook
             </Link>
-            <span className="text-white font-black text-lg tracking-[0.35em] uppercase">TALO</span>
+            {logo.image ? (
+              <img src={logo.image} alt="Logo" style={{ height: 26, width: 'auto', maxWidth: 160, objectFit: 'contain' }} />
+            ) : logo.wordmark ? (
+              <span className="text-white font-black text-lg tracking-[0.18em] uppercase">{logo.wordmark}</span>
+            ) : <span />}
           </div>
         </div>
 

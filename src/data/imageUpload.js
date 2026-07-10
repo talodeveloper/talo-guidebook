@@ -20,6 +20,16 @@ const PROFILES = {
     aspectMin: 3.5, aspectMax: 8,
     aspectHelp: 'Hero banner must be wide — width should be 3.5× to 8× the height (e.g. 2000×400).',
   },
+  // Logo: small, can be square or wide. A transparent PNG under ~600KB keeps
+  // its transparency (compressImage passes small files through untouched);
+  // larger logos are re-encoded to JPEG and lose transparency.
+  logo: {
+    minWidth: 80, minHeight: 40,
+    warnWidth: 240, warnHeight: 80,
+    maxDimension: 1000,
+    aspectMin: 0.4, aspectMax: 12,
+    aspectHelp: 'A logo can be square or wide. A transparent PNG works best.',
+  },
 }
 
 const JPEG_QUALITY = 0.85
