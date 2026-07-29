@@ -1,6 +1,7 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Jul 2 2026 — Guest roster merge (co-guests + guest sign-ins under each primary booker), Guest Database full roster + P/G type column, smart checkout, maintenance-mode activation fix**
+> **Last updated: Jul 11 2026 — Rental Terms rename + booking dates + guest→booker dropdown (getActivePrimaryBookers Cloud Function), false "unpublished changes" fix, wrong-workspace login guard, starter template + duplicate guidebook + global logo, lorem-ipsum check-in offer, preview-mode (?preview=1) fix**
+> Previous: Jul 2 2026 — Guest roster merge (co-guests + guest sign-ins under each primary booker), Guest Database full roster + P/G type column, smart checkout, maintenance-mode activation fix
 > Previous: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions
 > Previous: Jun 25 2026 — Landing page redesign, password reset, super-admin routing fix, tenant data isolation for check-ins, new-account banner fix
 > Session 1 — Built full V2 UI
@@ -23,6 +24,7 @@
 > Session 14 (Jun 25 2026) — Landing page redesign, password reset flows, super-admin apex routing fix, check-in/checkout tenant isolation, new-account "Initial setup" banner fix, login screen copy update
 > Session 15 (Jul 1 2026) — Per-property theme system + night backgrounds. See section below.
 > Session 16 (Jul 2 2026) — Maintenance-mode activation fix + guest roster merge (co-guests & guest sign-ins unified under primary booker, Guest Database full roster + P/G column, smart checkout). See section below.
+> Session 17 (Jul 11 2026) — Rental Terms rename, booking dates, guest→booker dropdown + Cloud Function, false-unpublished fix, wrong-workspace login guard, starter template + duplicate + global logo, lorem-ipsum offer, preview-mode fix. See section below.
 > Everything below is confirmed and saved to disk.
 
 ---
@@ -382,6 +384,34 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 - Theme field stored in `properties[slug].theme` in Firestore once tenant publishes
 
 ---
+
+### ✅ Session 17 (Jul 11 2026) — DEPLOYED & LIVE
+
+All committed + deployed to Cloudflare. Commits: `66829cc`, `c5897a5`, `7ad306d`, `88f8a3a`, `ec29a37`.
+
+**"Check In" → "Rental Terms" rename** (`V3GuidebookPage.jsx`, `V3CheckInPage.jsx`): all 4 guest entry buttons + the check-in page's own headers/success screen/submit now say "Rental Terms" (icons removed). Check-Out unchanged. V1/V2 untouched.
+
+**Booking dates** (`V3CheckInPage.jsx`, `guestRoster.js`, both admin views): primary booker form has required, validated Booking Check-In / Check-Out date fields (checkout must be after check-in). Stored on the record, shown next to the primary's name in Check-In Records, added as Guest Database columns, both CSVs, and the printed agreement.
+
+**Guest → primary-booker dropdown** (fixes the old "guests fell into an Unknown group" gap): the guest self-check-in step shows a dropdown of the property's currently-active primary bookers; the guest picks theirs, which sets an explicit `primaryGuestName` link. `guestRoster.js` now matches by this exact link (falling back to the old timing heuristic only for legacy records) — this also corrected a wrong assumption that only one primary can be active per property (multiple concurrent bookings now handled). Empty dropdown → guest check-in blocked with a message.
+- **New Cloud Function `getActivePrimaryBookers`** (`functions/index.js`, deployed us-central1): returns ONLY first/last names of active primary bookers for a property. Used instead of loosening Firestore rules — guests still can't read the check-in/checkout collections directly, so no PII exposure.
+
+**False "unpublished changes" fix** (`adminV3Store.js`): `_live` only ran `migrateHawkBedroomImages` while `_draft` ran the full `postProcessDraft` pipeline, so they could never be byte-equal → false banner. Also the FAQ-id migration used `Math.random()` (non-deterministic across the two copies). Fixes: `_live` now runs the SAME `postProcessDraft` (with a `persistKey` param so backfills write to the live slot), and FAQ ids are deterministic (`lfaq-${slug}-${i}`). Removes the risk of publishing a stale snapshot on a false signal.
+
+**Wrong-workspace login guard** (`adminV3Store.js login()`): compares the account's own `tenantId` claim vs the hostname's tenant; a mismatch is rejected + signed back out with a message. Legacy Talo accounts (no tenantId claim) unaffected.
+
+**Starter template + Duplicate + Global logo** (all tenant-isolated, generic — no Talo data leaks):
+- `loadStarterTemplate(slug)` fills an EMPTY property with generic `TEMPLATE_SECTIONS`/`TEMPLATE_FAQ` + 11 section-relevant SVG placeholders in `public/images/template/`. `isPropertyEmpty(slug)` guards it.
+- `duplicateGuidebook(source, target)` deep-copies one filled property's whole guidebook (blocks, FAQ, section config, ordering, disabled blocks, curation, image overrides — all re-keyed) + host & display settings; keeps target's own name/address/Wi-Fi. Refuses unless target empty & source non-empty. Both offered only on an empty property (PropertyHome).
+- `globalLogo { image, imagePath, wordmark }` in Global Content; new `logo` upload profile; guidebook header uses image→wordmark→nothing. Hardcoded "TALO" removed from hero, FAQ/Activity headers, check-in agreement.
+
+**Lorem-ipsum check-in offer** (`adminV3Store.js`): `DEFAULT_CHECKIN_OFFER` was "TALO Rentals / $50 credit" (white-label leak) → now neutral placeholder. Only affects new properties + fallback; existing published properties keep their stored value.
+
+**Preview-mode fix** (`V3GuidebookLayout.jsx`, `V3GuidebookPage.jsx`, `V3FAQPage.jsx`, `PropertyHome.jsx`, `PropertyInfo.jsx`): "Preview guidebook" + the theme-preview iframe now carry `?preview=1`. In preview the guidebook reads the DRAFT first (so new/unpublished/template properties resolve — no more redirect to admin login) and reads content blocks STRAIGHT FROM THE DRAFT (not contentStore, which firebaseSync overwrites with published data). Flag is sticky per-tab via `sessionStorage['v3_preview']`. Guests never carry it → only see published.
+
+**⚠️ Known bug found this session (NOT yet fixed) — session guard can deadlock:** in `sessionStore.js`/`Layout.jsx`, when a session is taken-over or force-logged-out, the old tab's heartbeat is NOT stopped (the watchSession taken-over/force-logout branch returns without `stopHeartbeat`/`clearSession`). A stale session keeps writing `lastSeen`, looks "active" forever, and can lock out a legitimate user with no escape. Recommended: stop heartbeat on takeover/force-logout, add a "sign in here anyway (force takeover)" button on the challenge screen, shorten the stale window. (Surfaced while trying to automate a testrentals login for onboarding screenshots.)
+
+**Onboarding playbook** (Jul 11): produced `~/Downloads/Talo-Host-Onboarding-Playbook.docx` — comprehensive Talo-branded new-host manual with 17 screenshot placeholders. Read-only task, no code changed. (Deliverable lives outside the repo.)
 
 ### ✅ Session 16 (Jul 2 2026) — Maintenance fix + guest roster merge — DEPLOYED & LIVE
 
