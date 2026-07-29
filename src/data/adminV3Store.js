@@ -283,6 +283,8 @@ function buildDefaultDraft() {
     // tenant's properties. `image` = uploaded logo URL, else `wordmark` text,
     // else nothing is shown.
     globalLogo: { image: null, imagePath: null, wordmark: '' },
+    // Global host contact info — one host card shown in every guidebook.
+    globalHostInfo: { ownerName: '', ownerPhone: '', ownerEmail: '', showHostCard: true },
   }
 }
 
@@ -304,6 +306,8 @@ function buildEmptyDraft() {
     // tenant's properties. `image` = uploaded logo URL, else `wordmark` text,
     // else nothing is shown.
     globalLogo: { image: null, imagePath: null, wordmark: '' },
+    // Global host contact info — one host card shown in every guidebook.
+    globalHostInfo: { ownerName: '', ownerPhone: '', ownerEmail: '', showHostCard: true },
     activityCategories: JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES)),
     __fromDefaults: true,
   }
@@ -511,6 +515,9 @@ function postProcessDraft(draft, persistKey = DRAFT_KEY) {
   draft = migrateSharedToPropertyBlocks(draft)
   if (draft && !draft.activityCategories) {
     draft.activityCategories = JSON.parse(JSON.stringify(ACTIVITY_CATEGORIES))
+  }
+  if (draft && !draft.globalHostInfo) {
+    draft.globalHostInfo = { ownerName: '', ownerPhone: '', ownerEmail: '', showHostCard: true }
   }
   if (draft?.propertyList?.some(p => p.status === 'inactive' && !p.deactivatedAt)) {
     draft.propertyList = draft.propertyList.map(p =>
@@ -772,6 +779,9 @@ export const adminV3Store = {
     if (JSON.stringify(_draft?.globalLogo) !== JSON.stringify(_live?.globalLogo)) {
       changes.push({ label: 'Guidebook Logo', property: 'Global' })
     }
+    if (JSON.stringify(_draft?.globalHostInfo) !== JSON.stringify(_live?.globalHostInfo)) {
+      changes.push({ label: 'Host Information', property: 'Global' })
+    }
     return changes
   },
 
@@ -945,6 +955,18 @@ export const adminV3Store = {
 
   setGlobalLogo(updates) {
     _draft.globalLogo = { ...(_draft.globalLogo || { image: null, imagePath: null, wordmark: '' }), ...updates }
+    writeJSON(DRAFT_KEY, _draft)
+    notify()
+  },
+
+  // ── Global host info ───────────────────────────────────────────────────────
+
+  getGlobalHostInfo() {
+    return _draft?.globalHostInfo || { ownerName: '', ownerPhone: '', ownerEmail: '', showHostCard: true }
+  },
+
+  setGlobalHostInfo(updates) {
+    _draft.globalHostInfo = { ...(_draft.globalHostInfo || { ownerName: '', ownerPhone: '', ownerEmail: '', showHostCard: true }), ...updates }
     writeJSON(DRAFT_KEY, _draft)
     notify()
   },

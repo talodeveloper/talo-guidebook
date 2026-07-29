@@ -195,12 +195,17 @@ export default function GlobalContentV3() {
   const [globalFaq, setGlobalFaq] = useState([])
   const [globalHero, setGlobalHero] = useState(adminV3Store.getGlobalHero())
   const [globalLogo, setGlobalLogo] = useState(adminV3Store.getGlobalLogo())
+  const [globalHostInfo, setGlobalHostInfo] = useState(adminV3Store.getGlobalHostInfo())
+  const [hostLocal, setHostLocal] = useState(adminV3Store.getGlobalHostInfo())
+  const [hostSaved, setHostSaved] = useState(false)
 
   const load = useCallback(() => {
     setBlocks(adminV3Store.getBlocksForSection('house_rules', null).filter(b => b.type === 'shared'))
     setGlobalFaq(adminV3Store.getGlobalFaq())
     setGlobalHero(adminV3Store.getGlobalHero())
     setGlobalLogo(adminV3Store.getGlobalLogo())
+    setGlobalHostInfo(adminV3Store.getGlobalHostInfo())
+    setHostLocal(adminV3Store.getGlobalHostInfo())
   }, [])
 
   useEffect(() => { load(); return adminV3Store.subscribe(load) }, [load])
@@ -279,6 +284,78 @@ export default function GlobalContentV3() {
           maxLength={40}
           className="w-full max-w-xs px-3 py-2 text-sm rounded-lg border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300" />
         <p className="text-[11px] text-slate-400 mt-1.5">Used only when no logo image is uploaded.</p>
+      </div>
+
+      {/* ── Host Information ─────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-2 mt-2">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #065F46, #059669)' }}>
+          <Icon name="person" size={18} className="text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Host Information</h2>
+          <p className="text-xs text-slate-500">Your contact details — shown on every property's guidebook</p>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-12 mt-4">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs text-slate-500">Appears as a "Your Host" card in each guest guidebook.</p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-[10px] font-semibold text-slate-400">
+              {hostLocal.showHostCard !== false ? 'Shown' : 'Hidden'}
+            </span>
+            <button
+              onClick={() => setHostLocal(h => ({ ...h, showHostCard: h.showHostCard === false }))}
+              title="Show or hide the Your Host card on all guidebooks"
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${hostLocal.showHostCard !== false ? 'bg-green-500' : 'bg-slate-300'}`}>
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${hostLocal.showHostCard !== false ? 'translate-x-4' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Host Name</label>
+            <input type="text" value={hostLocal.ownerName || ''}
+              onChange={e => setHostLocal(h => ({ ...h, ownerName: e.target.value }))}
+              placeholder="Joe Saari"
+              className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300 bg-white" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone</label>
+              <input type="text" value={hostLocal.ownerPhone || ''}
+                onChange={e => setHostLocal(h => ({ ...h, ownerPhone: e.target.value }))}
+                placeholder="+1 (608) 239-3574"
+                className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300 bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                Email <span className="text-[10px] font-normal text-slate-400">(desktop only)</span>
+              </label>
+              <input type="email" value={hostLocal.ownerEmail || ''}
+                onChange={e => setHostLocal(h => ({ ...h, ownerEmail: e.target.value }))}
+                placeholder="joe@example.com"
+                className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-300 bg-white" />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-1">
+            {hostSaved && (
+              <span className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                <Icon name="check_circle" size={13} /> Saved to draft
+              </span>
+            )}
+            <button
+              onClick={() => {
+                adminV3Store.setGlobalHostInfo(hostLocal)
+                setHostSaved(true)
+                setTimeout(() => setHostSaved(false), 2500)
+              }}
+              className="px-5 py-2 text-sm font-bold text-white rounded-xl hover:opacity-90 transition-opacity"
+              style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
+              Save
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ── Global Hero Banner ───────────────────────────────────────────── */}

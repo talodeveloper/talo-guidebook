@@ -298,7 +298,6 @@ export default function PropertyInfoV3() {
     setInfo(fresh)
     setGen({ name: fresh.name, address: fresh.address, maxGuests: fresh.maxGuests, checkInTime: fresh.checkInTime, checkoutTime: fresh.checkoutTime })
     setWifi({ network: fresh.wifi?.network || '', password: fresh.wifi?.password || '', notes: fresh.wifi?.notes || '' })
-    setHost({ ownerName: fresh.ownerName || '', ownerPhone: fresh.ownerPhone || '', ownerEmail: fresh.ownerEmail || '' })
     setWelcomeText(fresh.checkInWelcome || DEFAULT_CHECKIN_WELCOME)
     setOfferText(fresh.checkInOfferText || DEFAULT_CHECKIN_OFFER)
     setCurrentTheme(fresh.theme || 'modern')
@@ -317,9 +316,6 @@ export default function PropertyInfoV3() {
 
   // ── WiFi ───────────────────────────────────────────────────────────────────
   const [wifi, setWifi] = useState({ network: info.wifi?.network || '', password: info.wifi?.password || '', notes: info.wifi?.notes || '' })
-
-  // ── Host ───────────────────────────────────────────────────────────────────
-  const [host, setHost] = useState({ ownerName: info.ownerName || '', ownerPhone: info.ownerPhone || '', ownerEmail: info.ownerEmail || '' })
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto">
@@ -453,33 +449,6 @@ export default function PropertyInfoV3() {
           </Field>
           <div className="flex justify-end">
             <button onClick={() => save('wifi', { wifi })}
-              className="px-5 py-2 text-sm font-bold text-white rounded-xl hover:opacity-90 transition-opacity"
-              style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
-              Save
-            </button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Host */}
-      <Card title="Host Information" icon="person" saved={saved === 'host'}
-        enabled={info.showHostCard}
-        onToggle={() => adminV3Store.updatePropertyInfo(slug, { showHostCard: info.showHostCard === false })}
-        toggleHint="Hides the 'Your Host' card from the guidebook.">
-        <div className="space-y-4">
-          <Field label="Host Name">
-            <Input value={host.ownerName} onChange={v => setHost(h => ({ ...h, ownerName: v }))} placeholder="Joe Saari" />
-          </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Phone">
-              <Input value={host.ownerPhone} onChange={v => setHost(h => ({ ...h, ownerPhone: v }))} placeholder="+1 (608) 239-3574" />
-            </Field>
-            <Field label="Email" hint="Leave blank to hide Email button from guests">
-              <Input value={host.ownerEmail} onChange={v => setHost(h => ({ ...h, ownerEmail: v }))} placeholder="joe@talo.ventures" />
-            </Field>
-          </div>
-          <div className="flex justify-end">
-            <button onClick={() => save('host', host)}
               className="px-5 py-2 text-sm font-bold text-white rounded-xl hover:opacity-90 transition-opacity"
               style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
               Save

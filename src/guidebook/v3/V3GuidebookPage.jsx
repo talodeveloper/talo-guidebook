@@ -332,8 +332,11 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
   // Card visibility flags from admin Property Info (undefined = shown)
   const showPropertyCard = property.showPropertyCard !== false
   const showWifiCard     = property.showWifiCard !== false
-  const showHostCard     = property.showHostCard !== false
   const checkInEnabled   = property.checkInEnabled !== false
+
+  // Global host info
+  const globalHostInfo = readV3Data()?.globalHostInfo || {}
+  const showHostCard   = globalHostInfo.showHostCard !== false && !!globalHostInfo.ownerName
 
   return (
     <aside className="space-y-4">
@@ -384,23 +387,23 @@ export function V3RightSidebar({ property, slug, mapsUrl }) {
       {showHostCard && (
       <div className="rounded-xl border p-4" style={{ borderColor: BORDER, background: CARD_BG }}>
         <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: MUTED }}>Your Host</p>
-        <p className="font-bold text-label-md" style={{ color: TEXT }}>{property.ownerName}</p>
-        {property.ownerPhone && (
+        <p className="font-bold text-label-md" style={{ color: TEXT }}>{globalHostInfo.ownerName}</p>
+        {globalHostInfo.ownerPhone && (
           <p className="text-[12px] mt-1 select-all" style={{ color: MUTED }}>
             <Icon name="phone" size={11} style={{ color: PRIMARY }} className="inline mr-1" />
-            <span className="font-medium">{property.ownerPhone}</span>
+            <span className="font-medium">{globalHostInfo.ownerPhone}</span>
           </p>
         )}
         <div className="flex gap-2 mt-3">
-          {property.ownerPhone && (
-            <a href={`tel:${property.ownerPhone}`}
+          {globalHostInfo.ownerPhone && (
+            <a href={`tel:${globalHostInfo.ownerPhone}`}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-label-sm font-bold text-white"
               style={{ background: SUNSET }}>
               <Icon name="phone" size={14} className="text-white" /> Call / Text
             </a>
           )}
-          {property.ownerEmail && (
-            <a href={`mailto:${property.ownerEmail}`}
+          {globalHostInfo.ownerEmail && (
+            <a href={`mailto:${globalHostInfo.ownerEmail}`}
               className="flex-1 flex items-center justify-center gap-1.5 border py-2 rounded-lg text-label-sm font-bold transition-colors"
               style={{ borderColor: BORDER, color: MUTED }}>
               <Icon name="mail" size={14} /> Email
@@ -463,6 +466,10 @@ export default function V3GuidebookPage() {
   // Card/feature visibility from admin Property Info (undefined = shown)
   const showPropertyCard = property.showPropertyCard !== false
   const checkInEnabled   = property.checkInEnabled !== false
+
+  // Global host info for mobile/tablet strip
+  const mobileHostInfo  = readV3Data()?.globalHostInfo || {}
+  const showMobileHost  = mobileHostInfo.showHostCard !== false && !!mobileHostInfo.ownerName
 
   // Tenant's global logo (image | wordmark | none) for the hero overlay
   const logo = resolveGuidebookLogo(readV3Data())
@@ -776,6 +783,25 @@ export default function V3GuidebookPage() {
               </Link>
             </div>
           </div>
+        </div>
+      </div>
+      )}
+
+      {/* Your Host — mobile/tablet strip (hidden on desktop where right sidebar handles it) */}
+      {showMobileHost && (
+      <div className="no-print lg:hidden px-4 md:px-6 pt-2 pb-0">
+        <div className="rounded-xl border px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: t.BORDER, background: t.CARD }}>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: t.MUTED }}>Your Host</p>
+            <p className="font-bold text-[13px] leading-tight" style={{ color: t.TEXT }}>{mobileHostInfo.ownerName}</p>
+          </div>
+          {mobileHostInfo.ownerPhone && (
+            <a href={`tel:${mobileHostInfo.ownerPhone}`}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-opacity hover:opacity-80"
+              style={{ background: t.SUNSET }}>
+              <Icon name="phone" size={13} className="text-white" /> Call / Text
+            </a>
+          )}
         </div>
       </div>
       )}
