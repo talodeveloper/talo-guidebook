@@ -1,6 +1,7 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Jul 11 2026 — Rental Terms rename + booking dates + guest→booker dropdown (getActivePrimaryBookers Cloud Function), false "unpublished changes" fix, wrong-workspace login guard, starter template + duplicate guidebook + global logo, lorem-ipsum check-in offer, preview-mode (?preview=1) fix**
+> **Last updated: Jul 29 2026 — Global host info: Host Information moved from per-property to GlobalContent; mobile/tablet guidebook gets slim "Your Host" strip (Call/Text only)**
+> Previous: Jul 11 2026 — Rental Terms rename + booking dates + guest→booker dropdown (getActivePrimaryBookers Cloud Function), false "unpublished changes" fix, wrong-workspace login guard, starter template + duplicate guidebook + global logo, lorem-ipsum check-in offer, preview-mode (?preview=1) fix
 > Previous: Jul 2 2026 — Guest roster merge (co-guests + guest sign-ins under each primary booker), Guest Database full roster + P/G type column, smart checkout, maintenance-mode activation fix
 > Previous: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions
 > Previous: Jun 25 2026 — Landing page redesign, password reset, super-admin routing fix, tenant data isolation for check-ins, new-account banner fix
@@ -382,6 +383,17 @@ Everything below is done and live. The manual `set-tenant-claims.mjs` script is 
 **Pending for theme system:**
 - Payment gating for ✦ night-effect themes (marked premium, gate not yet built — all themes accessible for now)
 - Theme field stored in `properties[slug].theme` in Firestore once tenant publishes
+
+---
+
+### ✅ Session 18 (Jul 29 2026) — committed, not yet deployed
+
+**Global Host Information** (`adminV3Store.js`, `GlobalContent.jsx`, `PropertyInfo.jsx`, `V3GuidebookPage.jsx`):
+- Host info (`ownerName`, `ownerPhone`, `ownerEmail`, `showHostCard`) moved from per-property to a new top-level `globalHostInfo` field. One host card, all properties.
+- `getGlobalHostInfo()` / `setGlobalHostInfo()` added to store. `postProcessDraft` migration seeds the field on all existing drafts (starts empty — admin fills it in from Global Content). `hasUnsavedChanges` tracks changes.
+- **Admin:** "Host Information" card removed from every property's Property Info page. Added to Global Content (after Guidebook Logo) with name, phone, email, show/hide toggle, and Save button.
+- **Desktop guidebook** right sidebar: unchanged visually — reads from `globalHostInfo` now (Call/Text + Email as before, only if phone/email set and `ownerName` non-empty).
+- **Mobile/tablet guidebook** (`lg:hidden`): new slim "Your Host" strip added below the Property Info block — shows host name + Call/Text button only (no Email). Hidden on desktop (`lg+`).
 
 ---
 
