@@ -133,7 +133,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
                   ))}
                 </>
               )}
-              <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+              <div className="my-4" style={{ borderBottom: `1px solid ${t.BORDER}` }} />
             </div>
             <h3 className="font-bold text-[14px] mb-3 flex items-center gap-2" style={{ color: t.TEXT }}>
               <Icon name="gavel" size={15} style={{ color: t.PRIMARY }} />
