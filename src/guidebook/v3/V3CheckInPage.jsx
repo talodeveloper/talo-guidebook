@@ -111,7 +111,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>{brandLabel}</p>
               <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--t-text)' }}>House Rules Agreement</h2>
               <p className="text-[13px]" style={{ color: 'var(--t-muted)' }}>{property.name} · {property.address}</p>
-              <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+              <div className="my-4" style={{ borderBottom: `1px solid ${t.BORDER}` }} />
               <div className="space-y-1 text-[13px]">
                 <p><strong>Guest Name:</strong> {fullName}</p>
                 {data.email && <p><strong>Email:</strong> {data.email}</p>}
@@ -124,7 +124,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
               </div>
               {isPrimary && (data.coGuests || []).length > 0 && (
                 <>
-                  <div className="my-4" style={{ borderBottom: `1px solid ${BORDER}` }} />
+                  <div className="my-4" style={{ borderBottom: `1px solid ${t.BORDER}` }} />
                   <p className="text-[13px] font-bold mb-1">Additional Guests</p>
                   {data.coGuests.map((g, i) => (
                     <p key={i} className="text-[12px]">
@@ -311,6 +311,8 @@ export default function V3CheckInPage() {
   const [submitted, setSubmitted]         = useState(false)
   const [submittedData, setSubmittedData] = useState(null)
   const [submitTime, setSubmitTime]       = useState('')
+  const [submitting, setSubmitting]       = useState(false)
+  const [submitError, setSubmitError]     = useState('')
 
   // Common fields
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
@@ -414,7 +416,10 @@ export default function V3CheckInPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!canSubmit) return
+    if (!canSubmit || submitting) return
+
+    setSubmitting(true)
+    setSubmitError('')
 
     const now = new Date()
     const ts  = now.toLocaleString('en-US', {
@@ -455,6 +460,9 @@ export default function V3CheckInPage() {
       await addDoc(collection(db, 'v2_checkins'), payload)
     } catch (err) {
       console.error('[Firestore] check-in save failed:', err)
+      setSubmitting(false)
+      setSubmitError('Something went wrong saving your submission. Please check your connection and try again.')
+      return
     }
 
     setSubmittedData({
@@ -760,15 +768,20 @@ export default function V3CheckInPage() {
             )}
 
             {/* Submit button */}
-            <button type="submit" disabled={!canSubmit}
-              className="w-full py-4 rounded-2xl text-[14px] font-bold transition-all duration-200"
+            <button type="submit" disabled={!canSubmit || submitting}
+              className="w-full py-4 rounded-2xl text-[14px] font-bold transition-all duration-200 flex items-center justify-center gap-2"
               style={{
-                background: canSubmit ? GREEN_GRAD : (nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
-                color: canSubmit ? 'white' : t.MUTED,
-                cursor: canSubmit ? 'pointer' : 'not-allowed',
-                boxShadow: canSubmit ? '0 4px 15px rgba(5,150,105,0.3)' : 'none',
+                background: canSubmit && !submitting ? GREEN_GRAD : (nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
+                color: canSubmit && !submitting ? 'white' : t.MUTED,
+                cursor: canSubmit && !submitting ? 'pointer' : 'not-allowed',
+                boxShadow: canSubmit && !submitting ? '0 4px 15px rgba(5,150,105,0.3)' : 'none',
               }}>
-              {canSubmit
+              {submitting ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  Saving your agreement…
+                </>
+              ) : canSubmit
                 ? '✓  Accept Rental Terms'
                 : !allChecked
                   ? `Please agree to all ${rules.length} rules above`
@@ -786,6 +799,14 @@ export default function V3CheckInPage() {
                               ? "Please select your primary booker"
                               : 'Please check your details'}
             </button>
+
+            {submitError && (
+              <div className="mt-3 rounded-xl px-4 py-3 flex items-start gap-2"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <Icon name="error" size={15} style={{ color: '#EF4444', flexShrink: 0, marginTop: 1 }} />
+                <p className="text-[12px]" style={{ color: '#EF4444' }}>{submitError}</p>
+              </div>
+            )}
           </form>
 
           <div className="h-12" />
