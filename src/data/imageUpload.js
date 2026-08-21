@@ -85,11 +85,17 @@ async function compressImage(img, sourceFile, profile) {
   const ctx = canvas.getContext('2d')
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
+  // Preserve PNG format so transparent logos don't get a black background.
+  // JPEG doesn't support alpha — canvas fills transparent pixels with black.
+  const isPng = sourceFile.type === 'image/png'
+  const mimeType = isPng ? 'image/png' : 'image/jpeg'
+  const quality = isPng ? undefined : JPEG_QUALITY
+
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => resolve(blob || sourceFile),
-      'image/jpeg',
-      JPEG_QUALITY
+      mimeType,
+      quality
     )
   })
 }
