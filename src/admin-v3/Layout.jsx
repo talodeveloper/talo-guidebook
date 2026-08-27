@@ -321,6 +321,8 @@ export default function AdminV3Layout() {
       window.alert('Publish blocked: this would replace your live guidebook content (including uploaded images) with empty/default content. This usually means this browser tab is out of date — please reload the page and try again.')
     } else if (result === 'blocked-error') {
       window.alert("Couldn't verify your live content just now (network issue). Publish was cancelled to protect your data — please try again in a moment.")
+    } else if (result === 'firestore-error') {
+      window.alert("Your changes were saved locally but couldn't reach Firestore (network issue). Other browsers won't see the update yet. Please check your connection and try publishing again.")
     } else {
       window.alert('Publish is not ready yet — please reload the page and try again.')
     }

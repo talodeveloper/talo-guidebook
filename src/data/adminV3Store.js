@@ -11,16 +11,12 @@ import { fsPaths, getTenantId, DEFAULT_TENANT_ID } from './tenant'
 // can't overwrite our changes with stale data. Best-effort — failure here
 // must not block the local publish, since the local data is already saved.
 async function pushToFirestore(live, updatedAt = Date.now()) {
-  try {
-    // Tenant-scoped write ONLY. The previous global v2_content/blocks + /properties
-    // writes leaked one tenant's content into the shared legacy docs (cross-tenant
-    // pollution) — removed. firebaseSync reads tenants/{tid}/data/live as primary.
-    // JSON round-trip strips `undefined` (Firestore rejects undefined values).
-    const clean = JSON.parse(JSON.stringify(live))
-    await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt })
-  } catch (err) {
-    console.warn('[adminV3Store] Firestore push failed:', err)
-  }
+  // Tenant-scoped write ONLY. The previous global v2_content/blocks + /properties
+  // writes leaked one tenant's content into the shared legacy docs (cross-tenant
+  // pollution) — removed. firebaseSync reads tenants/{tid}/data/live as primary.
+  // JSON round-trip strips `undefined` (Firestore rejects undefined values).
+  const clean = JSON.parse(JSON.stringify(live))
+  await setDoc(doc(db, ...fsPaths.tenantDataLive()), { data: clean, updatedAt })
 }
 
 export const ADMIN_V3_LIVE_KEY = 'talo_admin_v3_live'
@@ -1581,9 +1577,18 @@ export const adminV3Store = {
       // Broadcast to other tabs in this browser — they'll mark themselves stale.
       localStorage.setItem(PUBLISHED_AT_KEY, String(publishedAt))
     } catch {}
-    // Push to Firestore so the real-time listener doesn't overwrite our
-    // changes with stale server data on the next page load. Fire and forget.
-    pushToFirestore(_live, publishedAt)
+    // Push to Firestore — awaited so the UI only shows success after the write
+    // actually lands. A failed push would leave other browsers on stale data.
+    try {
+      await pushToFirestore(_live, publishedAt)
+    } catch (err) {
+      // Roll back the local state so the admin reflects the truth.
+      _live = readJSON(ADMIN_V3_LIVE_KEY) || null
+      _loadedRemoteAt = null
+      try { localStorage.removeItem(LOADED_AT_KEY) } catch {}
+      notify()
+      return 'firestore-error'
+    }
     contentStore.reloadFromLive(_live.blocks)
     notify()
     return true
