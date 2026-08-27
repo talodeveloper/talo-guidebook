@@ -1608,20 +1608,17 @@ export const adminV3Store = {
 
   /**
    * Called when the stale-session banner's "Reload" button is clicked.
-   * Fetches the current Firestore timestamp and aligns _loadedRemoteAt with it
-   * so the next publish attempt isn't blocked. No page reload required.
+   * Re-hydrates _live and _draft from Firestore (fresh content + timestamp).
+   * Clears the stale flag. Does not require a page reload.
+   * Preserves the same pipeline as the initial load — this is the correct
+   * response to a stale warning: get the real content, not just the timestamp.
    */
   async syncRemoteAt() {
-    try {
-      const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
-      const remoteAt = snap.exists() ? (snap.data()?.updatedAt || null) : null
-      if (remoteAt) {
-        _loadedRemoteAt = remoteAt
-        try { localStorage.setItem(LOADED_AT_KEY, String(remoteAt)) } catch {}
-      }
-    } catch {}
     _staleSession = false
+    _hydrating = true
+    _ready = false
     notify()
+    await hydrateFromFirestore()
   },
 
   /**

@@ -585,7 +585,7 @@ export default function AdminV3Layout() {
                   <Icon name="sync_problem" size={14} />
                   Content updated elsewhere — reload to get latest
                 </div>
-                <button onClick={() => window.location.reload()}
+                <button onClick={async () => { await adminV3Store.syncRemoteAt() }}
                   className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
                   Reload
