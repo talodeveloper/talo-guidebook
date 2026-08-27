@@ -468,8 +468,8 @@ export default function V3GuidebookPage() {
   // Global host info — kept in state so Firestore updates trigger a re-render
   const [hostInfo, setHostInfo] = useState(() => readV3Data()?.globalHostInfo || {})
 
-  // Tenant's global logo (image | wordmark | none) for the hero overlay
-  const logo = resolveGuidebookLogo(readV3Data())
+  // Tenant's global logo — kept in state so publish/Firestore updates re-render
+  const [logo, setLogo] = useState(() => resolveGuidebookLogo(readV3Data()))
 
   // t uses CSS variable references — resolved at paint time from :root vars injected by V3GuidebookLayout
   const t = {
@@ -514,6 +514,7 @@ export default function V3GuidebookPage() {
       setSections(secs)
       setBlocks(all)
       setHostInfo(v3data?.globalHostInfo || {})
+      setLogo(resolveGuidebookLogo(v3data))
     }
     load()
     return contentStore.subscribe(load)
