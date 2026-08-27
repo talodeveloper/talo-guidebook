@@ -195,6 +195,7 @@ export default function GlobalContentV3() {
   const [globalFaq, setGlobalFaq] = useState([])
   const [globalHero, setGlobalHero] = useState(adminV3Store.getGlobalHero())
   const [globalLogo, setGlobalLogo] = useState(adminV3Store.getGlobalLogo())
+  const [logoPendingPublish, setLogoPendingPublish] = useState(false)
   const [globalHostInfo, setGlobalHostInfo] = useState(adminV3Store.getGlobalHostInfo())
   const [hostLocal, setHostLocal] = useState(adminV3Store.getGlobalHostInfo())
   const [hostSaved, setHostSaved] = useState(false)
@@ -204,6 +205,7 @@ export default function GlobalContentV3() {
     setGlobalFaq(adminV3Store.getGlobalFaq())
     setGlobalHero(adminV3Store.getGlobalHero())
     setGlobalLogo(adminV3Store.getGlobalLogo())
+    setLogoPendingPublish(false)
     setGlobalHostInfo(adminV3Store.getGlobalHostInfo())
     setHostLocal(adminV3Store.getGlobalHostInfo())
   }, [])
@@ -267,9 +269,20 @@ export default function GlobalContentV3() {
             onChange={imgs => {
               const img = imgs[0]
               adminV3Store.setGlobalLogo({ image: img?.src || null, imagePath: img?.path || null })
+              setGlobalLogo(adminV3Store.getGlobalLogo())
+              setLogoPendingPublish(true)
             }}
           />
         </div>
+
+        {logoPendingPublish && (
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+            <Icon name="warning" size={14} className="text-amber-600 flex-shrink-0" />
+            <p className="text-[12px] text-amber-700 font-medium">
+              Logo updated — click <strong>Publish</strong> at the top to save it permanently.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center gap-3 my-4">
           <div className="flex-1 h-px bg-slate-200" />
