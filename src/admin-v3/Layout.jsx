@@ -583,9 +583,9 @@ export default function AdminV3Layout() {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
                   <Icon name="sync_problem" size={14} />
-                  Content updated elsewhere — reload to continue
+                  Content updated elsewhere — reload to get latest
                 </div>
-                <button onClick={async () => { await adminV3Store.syncRemoteAt() }}
+                <button onClick={() => window.location.reload()}
                   className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
                   Reload
