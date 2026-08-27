@@ -247,6 +247,8 @@ export default function CheckIns() {
                   <p className="font-bold text-slate-900 text-[14px]">{primaryLabel}</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {group.propertyName || group.propertySlug} &nbsp;·&nbsp; {people} {people === 1 ? 'person' : 'people'}
+                    {group.carsCount != null && <> &nbsp;·&nbsp; {group.carsCount} {group.carsCount === 1 ? 'car' : 'cars'}</>}
+                    {group.dayVisitorsCount != null && group.dayVisitorsCount > 0 && <> &nbsp;·&nbsp; {group.dayVisitorsCount} day {group.dayVisitorsCount === 1 ? 'visitor' : 'visitors'}</>}
                     {group.stayCheckIn && group.stayCheckOut && (
                       <> &nbsp;·&nbsp; <span className="font-semibold text-slate-500">{fmtStayDate(group.stayCheckIn)} – {fmtStayDate(group.stayCheckOut)}</span></>
                     )}

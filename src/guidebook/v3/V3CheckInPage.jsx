@@ -6,7 +6,7 @@ import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/admin
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db, functions } from '../../firebase'
-import { collection, addDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 
 // Colors resolved via CSS custom properties injected by V3GuidebookLayout
@@ -323,6 +323,14 @@ export default function V3CheckInPage() {
   // Primary-only: booking stay dates
   const [stayCheckIn, setStayCheckIn]   = useState('')
   const [stayCheckOut, setStayCheckOut] = useState('')
+  // Primary-only: cars and day visitors
+  const [carsCount, setCarsCount]         = useState(0)
+  const [dayVisitors, setDayVisitors]     = useState(0)
+  const [hasDayVisitors, setHasDayVisitors] = useState(false)
+  // Primary-only: two-step flow ('form' → 'guests')
+  const [primaryStep, setPrimaryStep]     = useState('form')
+  // Primary-only: Firestore doc ref stored after step-1 save
+  const [checkinDocRef, setCheckinDocRef] = useState(null)
 
   // Guest-only: which primary booker they're staying with
   const [selectedBooker, setSelectedBooker] = useState('')
@@ -406,18 +414,23 @@ export default function V3CheckInPage() {
     ? (form.phone.trim() !== '' && !validatePhone(form.phone))
     : true
   const bookerValid = !isGuest || selectedBooker.trim() !== ''
-  const coGuestsValid = !isPrimary || coGuests.every(g =>
+  const coGuestsValid = coGuests.every(g =>
     g.firstName.trim() !== '' && g.lastName.trim() !== '' && String(g.age).trim() !== '' && !isNaN(Number(g.age))
   )
   const stayDatesValid = !isPrimary || (
     stayCheckIn.trim() !== '' && stayCheckOut.trim() !== '' && new Date(stayCheckOut) > new Date(stayCheckIn)
   )
-  const canSubmit = allChecked && namesValid && emailValid && phoneValid && coGuestsValid && stayDatesValid && bookerValid
+  // Step-1 (details + new questions) — does NOT require co-guest details
+  const canSubmitStep1 = allChecked && namesValid && emailValid && phoneValid && stayDatesValid && bookerValid
+  // Step-2 (co-guests) — only co-guest completeness required
+  const canSubmitStep2 = coGuestsValid
+  // Guest / legacy single-step
+  const canSubmit = canSubmitStep1
 
-  const handleSubmit = async (e) => {
+  // ── Step-1: save primary booker details to Firestore, advance to guest step ─
+  const handleSubmitStep1 = async (e) => {
     e.preventDefault()
-    if (!canSubmit || submitting) return
-
+    if (!canSubmitStep1 || submitting) return
     setSubmitting(true)
     setSubmitError('')
 
@@ -432,28 +445,104 @@ export default function V3CheckInPage() {
       tenantId:             getTenantId(),
       propertySlug:         slug,
       propertyName:         property.name,
-      checkinRole:          isPrimary ? 'primary' : 'guest',
+      checkinRole:          'primary',
       firstName:            form.firstName.trim(),
       lastName:             form.lastName.trim(),
       guestName:            fullName,
-      primaryGuestName:     isPrimary ? fullName : selectedBooker,
+      primaryGuestName:     fullName,
       email:                form.email.trim() || '',
       phone:                form.phone.trim() || '',
       submittedAt:          now.toISOString(),
       submittedAtFormatted: ts,
       agreedRules:          rules.map(r => ({ id: r.id, title: r.title })),
+      stayCheckIn,
+      stayCheckOut,
+      carsCount,
+      dayVisitorsCount:     hasDayVisitors ? dayVisitors : 0,
+      adultsCount:          0,
+      minorsCount:          0,
+      coGuests:             [],
     }
-    if (isPrimary) {
-      payload.adultsCount = adultCount
-      payload.minorsCount = minorCount
-      payload.coGuests = coGuests.map(g => ({
-        firstName: g.firstName.trim(),
-        lastName:  g.lastName.trim(),
-        age:       Number(g.age),
-        isMinor:   Number(g.age) < 18,
-      }))
-      payload.stayCheckIn  = stayCheckIn
-      payload.stayCheckOut = stayCheckOut
+
+    try {
+      const docRef = await addDoc(collection(db, 'v2_checkins'), payload)
+      setCheckinDocRef(docRef)
+      setSubmitTime(ts)
+      setSubmittedData({ ...form, coGuests: [], stayCheckIn, stayCheckOut })
+    } catch (err) {
+      console.error('[Firestore] check-in step-1 save failed:', err)
+      setSubmitting(false)
+      setSubmitError('Something went wrong saving your submission. Please check your connection and try again.')
+      return
+    }
+
+    setSubmitting(false)
+    setPrimaryStep('guests')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // ── Step-2: update the same doc with co-guest details, show success screen ──
+  const handleSubmitStep2 = async (e) => {
+    e.preventDefault()
+    if (!canSubmitStep2 || submitting) return
+    setSubmitting(true)
+    setSubmitError('')
+
+    const coGuestData = coGuests.map(g => ({
+      firstName: g.firstName.trim(),
+      lastName:  g.lastName.trim(),
+      age:       Number(g.age),
+      isMinor:   Number(g.age) < 18,
+    }))
+
+    if (checkinDocRef) {
+      try {
+        await updateDoc(doc(db, 'v2_checkins', checkinDocRef.id), {
+          adultsCount: adultCount,
+          minorsCount: minorCount,
+          coGuests:    coGuestData,
+        })
+      } catch (err) {
+        console.error('[Firestore] check-in step-2 update failed:', err)
+        setSubmitting(false)
+        setSubmitError('Something went wrong saving your guests. Please check your connection and try again.')
+        return
+      }
+    }
+
+    setSubmittedData(prev => ({ ...prev, coGuests: coGuestData, stayCheckIn, stayCheckOut }))
+    setSubmitted(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // ── Guest / single-step submit ───────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!canSubmit || submitting) return
+    setSubmitting(true)
+    setSubmitError('')
+
+    const now = new Date()
+    const ts  = now.toLocaleString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`
+
+    const payload = {
+      tenantId:             getTenantId(),
+      propertySlug:         slug,
+      propertyName:         property.name,
+      checkinRole:          'guest',
+      firstName:            form.firstName.trim(),
+      lastName:             form.lastName.trim(),
+      guestName:            fullName,
+      primaryGuestName:     selectedBooker,
+      email:                form.email.trim() || '',
+      phone:                form.phone.trim() || '',
+      submittedAt:          now.toISOString(),
+      submittedAtFormatted: ts,
+      agreedRules:          rules.map(r => ({ id: r.id, title: r.title })),
     }
 
     try {
@@ -465,12 +554,7 @@ export default function V3CheckInPage() {
       return
     }
 
-    setSubmittedData({
-      ...form,
-      coGuests: isPrimary ? coGuests : [],
-      stayCheckIn: isPrimary ? stayCheckIn : '',
-      stayCheckOut: isPrimary ? stayCheckOut : '',
-    })
+    setSubmittedData({ ...form, coGuests: [], stayCheckIn: '', stayCheckOut: '' })
     setSubmitTime(ts)
     setSubmitted(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -556,6 +640,136 @@ export default function V3CheckInPage() {
   }
 
   const countOptions = [...Array(31).keys()] // 0–30
+  const carOptions   = [...Array(11).keys()] // 0–10
+
+  // ── Primary step 2: Register Guests ─────────────────────────────────────────
+  if (isPrimary && primaryStep === 'guests') {
+    return (
+      <NightModeCtx.Provider value={nightMode}>
+        <div className="min-h-screen" style={{ background: t.BG }}>
+          <div className="max-w-2xl mx-auto px-4 py-8">
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                style={{ background: BLUE_GRAD }}>
+                <Icon name="group" size={20} className="text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: t.PRIMARY }}>
+                  Step 2 of 2 · Register Guests
+                </p>
+                <p className="font-bold text-[17px] leading-tight" style={{ color: t.TEXT }}>{property.name}</p>
+              </div>
+            </div>
+
+            {/* Offer / message banner at top */}
+            {offerText && (
+              <div className="rounded-2xl p-4 mb-5 border"
+                style={{
+                  borderColor: 'rgba(37,99,235,0.25)',
+                  background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
+                }}>
+                <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+              </div>
+            )}
+
+            {/* Co-guest section */}
+            <form onSubmit={handleSubmitStep2}>
+              <div className="rounded-2xl border p-5 mb-5 space-y-4" style={{ borderColor: t.BORDER, background: t.CARD }}>
+                <div>
+                  <h3 className="font-bold text-[14px]" style={{ color: t.TEXT }}>Who's Staying With You?</h3>
+                  <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>
+                    Don't count yourself — just the other guests staying at the property.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                      Adults (18+)
+                    </label>
+                    <select value={adultCount} onChange={e => setAdultCount(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                      style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}>
+                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                      Minors (under 18)
+                    </label>
+                    <select value={minorCount} onChange={e => setMinorCount(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                      style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}>
+                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {coGuests.length > 0 && (
+                  <div className="space-y-3 pt-1">
+                    {coGuests.map((g, i) => (
+                      <div key={i} className="rounded-xl p-3 space-y-2" style={{
+                        border: `1px solid ${t.BORDER}`,
+                        background: 'var(--t-primary-05)',
+                      }}>
+                        <p className="text-[11px] font-bold" style={{ color: t.PRIMARY }}>
+                          {g.isMinor ? `Minor ${i - adultCount + 1}` : `Adult ${i + 1}`}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="text" value={g.firstName}
+                            onChange={e => setCoGuest(i, 'firstName', e.target.value)}
+                            placeholder="First name"
+                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
+                          <input type="text" value={g.lastName}
+                            onChange={e => setCoGuest(i, 'lastName', e.target.value)}
+                            placeholder="Last name"
+                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
+                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
+                        </div>
+                        <input type="number" min={g.isMinor ? 0 : 18} max={g.isMinor ? 17 : 120} value={g.age}
+                          onChange={e => setCoGuest(i, 'age', e.target.value)}
+                          placeholder="Age"
+                          className="w-24 px-3 py-2 rounded-lg text-[12px] outline-none"
+                          style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" disabled={!canSubmitStep2 || submitting}
+                className="w-full py-4 rounded-2xl text-[14px] font-bold transition-all duration-200 flex items-center justify-center gap-2"
+                style={{
+                  background: canSubmitStep2 && !submitting ? GREEN_GRAD : (nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
+                  color: canSubmitStep2 && !submitting ? 'white' : t.MUTED,
+                  cursor: canSubmitStep2 && !submitting ? 'pointer' : 'not-allowed',
+                  boxShadow: canSubmitStep2 && !submitting ? '0 4px 15px rgba(5,150,105,0.3)' : 'none',
+                }}>
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                    Saving…
+                  </>
+                ) : '✓  Submit'}
+              </button>
+
+              {submitError && (
+                <div className="mt-3 rounded-xl px-4 py-3 flex items-start gap-2"
+                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <Icon name="error" size={15} style={{ color: '#EF4444', flexShrink: 0, marginTop: 1 }} />
+                  <p className="text-[12px]" style={{ color: '#EF4444' }}>{submitError}</p>
+                </div>
+              )}
+            </form>
+
+            <div className="h-12" />
+          </div>
+        </div>
+      </NightModeCtx.Provider>
+    )
+  }
 
   return (
     <NightModeCtx.Provider value={nightMode}>
@@ -577,7 +791,7 @@ export default function V3CheckInPage() {
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: t.PRIMARY }}>
-                  Rental Terms · {isPrimary ? 'Primary Booker' : 'Guest'}
+                  {isPrimary ? 'Step 1 of 2 · ' : ''}Rental Terms · {isPrimary ? 'Primary Booker' : 'Guest'}
                 </p>
                 <p className="font-bold text-[17px] leading-tight" style={{ color: t.TEXT }}>{property.name}</p>
               </div>
@@ -611,14 +825,14 @@ export default function V3CheckInPage() {
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit}>
+          {/* Form — step 1 (primary) or single-step (guest) */}
+          <form onSubmit={isPrimary ? handleSubmitStep1 : handleSubmit}>
             <div className="rounded-2xl border p-5 mb-5 space-y-4" style={{ borderColor: t.BORDER, background: t.CARD }}>
               <div>
                 <h3 className="font-bold text-[14px]" style={{ color: t.TEXT }}>Your Details</h3>
                 <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>
                   {isPrimary
-                    ? 'As the primary booker, please also list everyone staying with you.'
+                    ? 'Fill in your details below. You will register the rest of your group in the next step.'
                     : 'All guests must fill this individually using the same link.'}
                 </p>
               </div>
@@ -678,94 +892,58 @@ export default function V3CheckInPage() {
                     onChange={(e) => setStayCheckOut(e.target.value)} />
                 </div>
               )}
-            </div>
 
-            {/* Primary booker: group details */}
-            {isPrimary && (
-              <div className="rounded-2xl border p-5 mb-5 space-y-4" style={{ borderColor: t.BORDER, background: t.CARD }}>
-                <div>
-                  <h3 className="font-bold text-[14px]" style={{ color: t.TEXT }}>Who's Staying With You?</h3>
-                  <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>
-                    Don't count yourself — just the other guests staying at the property.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              {/* Cars and day visitors — primary booker only */}
+              {isPrimary && (
+                <>
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
-                      Adults (18+)
+                      How many cars will you be bringing? <span style={{ color: 'var(--t-primary)' }}>*</span>
                     </label>
-                    <select value={adultCount} onChange={e => setAdultCount(Number(e.target.value))}
+                    <select value={carsCount} onChange={e => setCarsCount(Number(e.target.value))}
                       className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
-                      style={{
-                        border: `1.5px solid ${t.BORDER}`,
-                        background: 'var(--t-bg)',
-                        color: t.TEXT,
-                      }}>
-                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                      style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}>
+                      {carOptions.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
+
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
-                      Minors (under 18)
+                      Any visitors who will NOT be staying overnight at the property?{' '}
+                      <span className="font-normal normal-case" style={{ color: t.MUTED }}>(optional)</span>
                     </label>
-                    <select value={minorCount} onChange={e => setMinorCount(Number(e.target.value))}
+                    <p className="text-[11px] mb-2 leading-relaxed" style={{ color: t.MUTED }}>
+                      Day visitors are people who will spend time at the property during the day but will not be sleeping overnight.
+                    </p>
+                    <select value={hasDayVisitors ? 'yes' : 'no'}
+                      onChange={e => {
+                        const yes = e.target.value === 'yes'
+                        setHasDayVisitors(yes)
+                        if (!yes) setDayVisitors(0)
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
-                      style={{
-                        border: `1.5px solid ${t.BORDER}`,
-                        background: 'var(--t-bg)',
-                        color: t.TEXT,
-                      }}>
-                      {countOptions.map(n => <option key={n} value={n}>{n}</option>)}
+                      style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}>
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
                     </select>
-                  </div>
-                </div>
-
-                {coGuests.length > 0 && (
-                  <div className="space-y-3 pt-1">
-                    {coGuests.map((g, i) => (
-                      <div key={i} className="rounded-xl p-3 space-y-2" style={{
-                        border: `1px solid ${t.BORDER}`,
-                        background: 'var(--t-primary-05)',
-                      }}>
-                        <p className="text-[11px] font-bold" style={{ color: t.PRIMARY }}>
-                          {g.isMinor
-                            ? `Minor ${i - adultCount + 1}`
-                            : `Adult ${i + 1}`}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input type="text" value={g.firstName}
-                            onChange={e => setCoGuest(i, 'firstName', e.target.value)}
-                            placeholder="First name"
-                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
-                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
-                          <input type="text" value={g.lastName}
-                            onChange={e => setCoGuest(i, 'lastName', e.target.value)}
-                            placeholder="Last name"
-                            className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
-                            style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
-                        </div>
-                        <input type="number" min={g.isMinor ? 0 : 18} max={g.isMinor ? 17 : 120} value={g.age}
-                          onChange={e => setCoGuest(i, 'age', e.target.value)}
-                          placeholder="Age"
-                          className="w-24 px-3 py-2 rounded-lg text-[12px] outline-none"
-                          style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }} />
+                    {hasDayVisitors && (
+                      <div className="mt-3">
+                        <label className="block text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: t.MUTED }}>
+                          How many day visitors? <span style={{ color: 'var(--t-primary)' }}>*</span>
+                        </label>
+                        <input
+                          type="number" min={1} max={50} value={dayVisitors || ''}
+                          onChange={e => setDayVisitors(Math.max(1, Number(e.target.value) || 1))}
+                          placeholder="e.g. 3"
+                          className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none"
+                          style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.TEXT }}
+                        />
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-
-                {/* Offer banner */}
-                {offerText && (
-                  <div className="rounded-xl p-3.5" style={{
-                    background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
-                    border: '1px solid rgba(37,99,235,0.25)',
-                  }}>
-                    <p className="text-[12px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
-                  </div>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             {/* Submit button */}
             <button type="submit" disabled={!canSubmit || submitting}
@@ -782,7 +960,7 @@ export default function V3CheckInPage() {
                   Saving your agreement…
                 </>
               ) : canSubmit
-                ? '✓  Accept Rental Terms'
+                ? isPrimary ? '→  Submit & Register Guests' : '✓  Accept Rental Terms'
                 : !allChecked
                   ? `Please agree to all ${rules.length} rules above`
                   : !namesValid
@@ -791,13 +969,11 @@ export default function V3CheckInPage() {
                       ? 'Please enter a valid email'
                       : isPrimary && !phoneValid
                         ? 'Please enter a valid phone number'
-                        : isPrimary && !coGuestsValid
-                          ? 'Please complete details for every guest'
-                          : isPrimary && !stayDatesValid
-                            ? 'Please enter valid booking check-in and check-out dates'
-                            : isGuest && !bookerValid
-                              ? "Please select your primary booker"
-                              : 'Please check your details'}
+                        : isPrimary && !stayDatesValid
+                          ? 'Please enter valid booking check-in and check-out dates'
+                          : isGuest && !bookerValid
+                            ? "Please select your primary booker"
+                            : 'Please check your details'}
             </button>
 
             {submitError && (

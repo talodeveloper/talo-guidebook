@@ -121,6 +121,7 @@ export function buildGuestGroups(checkins, checkouts) {
       key, primaryName, propertySlug: slug, propertyName: lead.propertyName || slug,
       checkinTs, checkoutTs: checkedOut ? coTs : null, active: !checkedOut, orphan: false, roster,
       stayCheckIn: lead.stayCheckIn || null, stayCheckOut: lead.stayCheckOut || null,
+      carsCount: lead.carsCount ?? null, dayVisitorsCount: lead.dayVisitorsCount ?? null,
     })
   }
 
