@@ -67,8 +67,19 @@ try {
       const full = snap.exists() ? snap.data()?.data : null
       if (full && Array.isArray(full.blocks) && full.blocks.length > 0) {
         // Hydrate the public guest cache so readV3Data() serves real published
-        // config to first-time visitors. NEVER writes the admin's own keys.
+        // config to first-time visitors.
         try { localStorage.setItem(GUEST_V3_CACHE_KEY, JSON.stringify(full)) } catch {}
+        // If admin is NOT signed in on this browser, also refresh talo_admin_v3_live
+        // so a stale key from a previous admin session doesn't shadow the fresh
+        // Firestore data. (readV3Data reads admin-live first — a stale copy there
+        // would hide logo/hero/host updates published from another device.)
+        // We deliberately skip this when admin IS signed in to avoid clobbering
+        // the in-memory _live state that adminV3Store owns.
+        try {
+          if (localStorage.getItem('talo_admin_v3_auth') !== 'true') {
+            localStorage.setItem('talo_admin_v3_live', JSON.stringify(full))
+          }
+        } catch {}
         if (full.properties) { _propertyOverrides = full.properties; notifyProp() }
         if (full.faq)        { _faqOverrides = full.faq;        notifyFaq() }
         contentStore.reloadFromLive(full.blocks)
