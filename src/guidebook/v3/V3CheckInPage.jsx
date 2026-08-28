@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useOutletContext, useParams, useSearchParams, Link } from 'react-router-dom'
+import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { NightModeCtx, readV3Data, resolveGuidebookLogo } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
@@ -312,8 +312,6 @@ export default function V3CheckInPage() {
   const { property, nightMode } = useOutletContext()
   const { slug } = useParams()
 
-  const [searchParams] = useSearchParams()
-
   // 'choice' | 'primary' | 'guest'
   const [step, setStep] = useState('choice')
 
@@ -343,8 +341,6 @@ export default function V3CheckInPage() {
   const [primaryStep, setPrimaryStep]     = useState('form')
   // Primary-only: Firestore doc ref stored after step-1 save
   const [checkinDocRef, setCheckinDocRef] = useState(null)
-  // Primary-only: shareable resume link shown after step-1
-  const [resumeLink, setResumeLink]       = useState('')
 
   // Guest-only: which primary booker they're staying with
   const [selectedBooker, setSelectedBooker] = useState('')
@@ -371,25 +367,6 @@ export default function V3CheckInPage() {
     load()
     return contentStore.subscribe(load)
   }, [slug])
-
-  // If URL has ?resume=docId, jump directly to step-2 for that booking
-  useEffect(() => {
-    const resumeId = searchParams.get('resume')
-    if (!resumeId) return
-    // Restore name/timestamp from sessionStorage if the same browser submitted step 1
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(`talo_checkin_resume_${resumeId}`) || 'null')
-      if (saved) {
-        setForm(f => ({ ...f, firstName: saved.firstName || '', lastName: saved.lastName || '', email: saved.email || '' }))
-        setSubmitTime(saved.ts || '')
-        setSubmittedData({ firstName: saved.firstName || '', lastName: saved.lastName || '', coGuests: [], stayCheckIn: '', stayCheckOut: '' })
-      }
-    } catch {}
-    // Point to the existing Firestore doc (no read needed — updateDoc only requires write access)
-    setCheckinDocRef(doc(db, 'v2_checkins', resumeId))
-    setStep('primary')
-    setPrimaryStep('guests')
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resize co-guest rows when counts change (adults first, then minors)
   useEffect(() => {
@@ -499,21 +476,13 @@ export default function V3CheckInPage() {
 
     try {
       const docRef = await addDoc(collection(db, 'v2_checkins'), payload)
+      // Store resume URL in the doc itself so a Talo admin can find and share it if
+      // the primary booker never completes step 2.
+      const resumeUrl = `${window.location.origin}${window.location.pathname}?resume=${docRef.id}`
+      await updateDoc(doc(db, 'v2_checkins', docRef.id), { resumeUrl })
       setCheckinDocRef(docRef)
       setSubmitTime(ts)
       setSubmittedData({ ...form, coGuests: [], stayCheckIn, stayCheckOut })
-      // Build a resume URL so the host can share it if the guest skips step 2
-      const url = `${window.location.origin}${window.location.pathname}?resume=${docRef.id}`
-      setResumeLink(url)
-      // Cache minimal data so the same browser can restore names on resume
-      try {
-        sessionStorage.setItem(`talo_checkin_resume_${docRef.id}`, JSON.stringify({
-          firstName: form.firstName.trim(),
-          lastName:  form.lastName.trim(),
-          email:     form.email.trim(),
-          ts,
-        }))
-      } catch {}
     } catch (err) {
       console.error('[Firestore] check-in step-1 save failed:', err)
       setSubmitting(false)
@@ -715,38 +684,6 @@ export default function V3CheckInPage() {
                   background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
                 }}>
                 <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
-              </div>
-            )}
-
-            {/* Resume link — so the host can share it if the guest leaves before step 2 */}
-            {resumeLink && (
-              <div className="rounded-2xl p-4 mb-5 border"
-                style={{
-                  borderColor: 'rgba(5,150,105,0.25)',
-                  background: nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.05)',
-                }}>
-                <p className="text-[12px] font-semibold mb-1.5" style={{ color: t.TEXT }}>
-                  Save this link to come back and add your guests later:
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={resumeLink}
-                    className="flex-1 px-3 py-2 rounded-lg text-[11px] outline-none select-all"
-                    style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.MUTED }}
-                    onClick={e => e.target.select()}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { try { navigator.clipboard.writeText(resumeLink) } catch {} }}
-                    className="px-3 py-2 rounded-lg text-[11px] font-bold flex-shrink-0"
-                    style={{ background: 'rgba(5,150,105,0.15)', color: '#059669' }}>
-                    Copy
-                  </button>
-                </div>
-                <p className="text-[10px] mt-1.5" style={{ color: t.MUTED }}>
-                  Your details are already saved. This link lets you (or your guests) complete step 2 at any time.
-                </p>
               </div>
             )}
 
