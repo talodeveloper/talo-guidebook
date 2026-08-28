@@ -6,7 +6,7 @@ import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/admin
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db, functions } from '../../firebase'
-import { collection, addDoc, updateDoc, doc, setDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 
 // Colors resolved via CSS custom properties injected by V3GuidebookLayout
@@ -366,6 +366,33 @@ export default function V3CheckInPage() {
     }
     load()
     return contentStore.subscribe(load)
+  }, [slug])
+
+  // Resume flow: ?resume=docId bypasses the choice/form screens and lands
+  // directly on step 2 so the primary booker can finish registering guests.
+  useEffect(() => {
+    const resumeId = new URLSearchParams(window.location.search).get('resume')
+    if (!resumeId) return
+    getDoc(doc(db, 'v2_checkins', resumeId)).then(snap => {
+      if (!snap.exists()) return
+      const d = snap.data()
+      if (d.propertySlug !== slug || d.checkinRole !== 'primary') return
+      setForm({ firstName: d.firstName || '', lastName: d.lastName || '', email: d.email || '', phone: d.phone || '' })
+      setStayCheckIn(d.stayCheckIn || '')
+      setStayCheckOut(d.stayCheckOut || '')
+      setCarsCount(d.carsCount ?? 0)
+      if ((d.dayVisitorsCount || 0) > 0) { setHasDayVisitors(true); setDayVisitors(d.dayVisitorsCount) }
+      setCheckinDocRef(snap.ref)
+      setSubmitTime(d.submittedAtFormatted || '')
+      setSubmittedData({
+        firstName: d.firstName || '', lastName: d.lastName || '',
+        email: d.email || '', phone: d.phone || '',
+        coGuests: d.coGuests || [], stayCheckIn: d.stayCheckIn || '', stayCheckOut: d.stayCheckOut || '',
+      })
+      setStep('primary')
+      setPrimaryStep('guests')
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }).catch(err => console.error('[Firestore] resume load failed:', err))
   }, [slug])
 
   // Resize co-guest rows when counts change (adults first, then minors)
