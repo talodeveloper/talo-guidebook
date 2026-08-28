@@ -6,7 +6,7 @@ import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/admin
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db, functions } from '../../firebase'
-import { collection, addDoc, updateDoc, doc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, setDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 
 // Colors resolved via CSS custom properties injected by V3GuidebookLayout
@@ -474,15 +474,12 @@ export default function V3CheckInPage() {
       coGuests:             [],
     }
 
+    // Pre-generate the doc ref so we can include resumeUrl in the single write.
+    const newDocRef = doc(collection(db, 'v2_checkins'))
+    const resumeUrl = `${window.location.origin}${window.location.pathname}?resume=${newDocRef.id}`
+
     try {
-      const docRef = await addDoc(collection(db, 'v2_checkins'), payload)
-      // Store resume URL in the doc itself so a Talo admin can find and share it if
-      // the primary booker never completes step 2.
-      const resumeUrl = `${window.location.origin}${window.location.pathname}?resume=${docRef.id}`
-      await updateDoc(doc(db, 'v2_checkins', docRef.id), { resumeUrl })
-      setCheckinDocRef(docRef)
-      setSubmitTime(ts)
-      setSubmittedData({ ...form, coGuests: [], stayCheckIn, stayCheckOut })
+      await setDoc(newDocRef, { ...payload, resumeUrl })
     } catch (err) {
       console.error('[Firestore] check-in step-1 save failed:', err)
       setSubmitting(false)
@@ -490,6 +487,10 @@ export default function V3CheckInPage() {
       return
     }
 
+    // All state updates after the try/catch so React batches them into one render.
+    setCheckinDocRef(newDocRef)
+    setSubmitTime(ts)
+    setSubmittedData({ ...form, coGuests: [], stayCheckIn, stayCheckOut })
     setSubmitting(false)
     setPrimaryStep('guests')
     window.scrollTo({ top: 0, behavior: 'smooth' })
