@@ -27,6 +27,7 @@ export default function CheckIns() {
   const [error, setError]               = useState(null)
   const [filterSlug, setFilterSlug]     = useState('all')
   const [expandedPrimary, setExpandedPrimary] = useState({})
+  const [copiedKey, setCopiedKey] = useState(null)
 
   // Load check-in submissions
   useEffect(() => {
@@ -260,6 +261,26 @@ export default function CheckIns() {
                   className="text-slate-400 flex-shrink-0"
                 />
               </button>
+
+              {/* Resume link copy — only for primary booker groups that have one */}
+              {!group.orphan && group.resumeUrl && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(group.resumeUrl).catch(() => {})
+                    setCopiedKey(gkey)
+                    setTimeout(() => setCopiedKey(k => k === gkey ? null : k), 2000)
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-semibold transition-colors flex-shrink-0"
+                  style={{
+                    background: copiedKey === gkey ? '#EFF6FF' : '#F8FAFC',
+                    color: copiedKey === gkey ? '#1D4ED8' : '#64748B',
+                  }}
+                  title="Copy step-2 resume link to share with primary booker"
+                >
+                  <Icon name={copiedKey === gkey ? 'check' : 'link'} size={13} />
+                  <span className="hidden sm:inline">{copiedKey === gkey ? 'Copied!' : 'Resume Link'}</span>
+                </button>
+              )}
 
               {/* Mark as Checked Out button — not for orphan (no primary) groups */}
               {!group.orphan && (
