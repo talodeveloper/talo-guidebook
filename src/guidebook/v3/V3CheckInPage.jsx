@@ -74,24 +74,26 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
         @media print {
           .ci-no-print { display: none !important; }
           .ci-print-show { display: block !important; }
-          .ci-print-page { background: white !important; padding: 0 !important; }
+          .ci-print-page { background: white !important; }
           body { background: white !important; color: #111827 !important; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           :root {
-            --t-bg: #ffffff;
-            --t-surface: #ffffff;
-            --t-border: #e5e7eb;
-            --t-text: #111827;
-            --t-muted: #6b7280;
-            --t-primary: #2563eb;
-            --t-primary-05: rgba(37,99,235,0.06);
+            --t-bg: #ffffff !important;
+            --t-surface: #ffffff !important;
+            --t-border: #e5e7eb !important;
+            --t-text: #111827 !important;
+            --t-muted: #6b7280 !important;
+            --t-primary: #2563eb !important;
+            --t-primary-05: rgba(37,99,235,0.06) !important;
           }
         }
         .ci-print-show { display: none; }
       `}</style>
-      <div className="ci-print-page min-h-screen" style={{ background: t.BG }}>
-        <div className="max-w-2xl mx-auto px-4 py-10">
-          <div className="ci-no-print flex flex-col items-center text-center mb-8">
+      <div className="ci-print-page" style={{ background: t.BG }}>
+
+        {/* Screen: vertically + horizontally centered, hidden in print */}
+        <div className="ci-no-print min-h-screen flex flex-col items-center justify-center px-4 py-10">
+          <div className="w-full max-w-2xl flex flex-col items-center text-center">
             <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-lg"
               style={{ background: GREEN_GRAD }}>
               <Icon name="check_circle" size={44} className="text-white" />
@@ -102,37 +104,39 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
             </p>
             <p className="text-[13px] mt-1" style={{ color: t.MUTED }}>{property.name}</p>
             <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>{timestamp}</p>
-          </div>
 
-          {/* Group check-in offer — primary booker only */}
-          {isPrimary && offerText && (
-            <div className="ci-no-print rounded-2xl p-4 mb-6 border"
-              style={{
-                borderColor: 'rgba(37,99,235,0.25)',
-                background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
-              }}>
-              <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+            {/* Group check-in offer — primary booker only */}
+            {isPrimary && offerText && (
+              <div className="w-full rounded-2xl p-4 mt-6 border text-left"
+                style={{
+                  borderColor: 'rgba(37,99,235,0.25)',
+                  background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
+                }}>
+                <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="w-full flex flex-col sm:flex-row gap-3 mt-6">
+              <button onClick={() => window.print()}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+                style={{ background: GREEN_GRAD }}>
+                <Icon name="download" size={16} className="text-white" />
+                Download PDF
+              </button>
+              <Link to={guidebookPath(slug)}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
+                style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
+                <Icon name="arrow_back" size={16} />
+                Back to Guidebook
+              </Link>
             </div>
-          )}
-
-          {/* Buttons — screen only, appear right after the thank-you header */}
-          <div className="ci-no-print flex flex-col sm:flex-row gap-3 mb-6">
-            <button onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold text-white transition-opacity hover:opacity-90"
-              style={{ background: GREEN_GRAD }}>
-              <Icon name="download" size={16} className="text-white" />
-              Download PDF
-            </button>
-            <Link to={guidebookPath(slug)}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
-              style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
-              <Icon name="arrow_back" size={16} />
-              Back to Guidebook
-            </Link>
           </div>
+        </div>
 
-          {/* Full agreement card — print/PDF only, hidden on screen */}
-          <div className="ci-print-show rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
+        {/* Print/PDF: full agreement card, hidden on screen */}
+        <div className="ci-print-show max-w-2xl mx-auto px-4 py-10">
+        <div className="rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
             <div className="mb-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>{brandLabel}</p>
               <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--t-text)' }}>House Rules Agreement</h2>
