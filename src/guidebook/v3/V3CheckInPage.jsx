@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useOutletContext, useParams, Link } from 'react-router-dom'
+import { useOutletContext, useParams, useSearchParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { NightModeCtx, readV3Data, resolveGuidebookLogo } from './V3GuidebookPage'
 import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
@@ -75,8 +75,17 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
           .ci-no-print { display: none !important; }
           .ci-print-show { display: block !important; }
           .ci-print-page { background: white !important; padding: 0 !important; }
-          body { background: white !important; }
+          body { background: white !important; color: #111827 !important; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          :root {
+            --t-bg: #ffffff;
+            --t-surface: #ffffff;
+            --t-border: #e5e7eb;
+            --t-text: #111827;
+            --t-muted: #6b7280;
+            --t-primary: #2563eb;
+            --t-primary-05: rgba(37,99,235,0.06);
+          }
         }
         .ci-print-show { display: none; }
       `}</style>
@@ -106,8 +115,25 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
             </div>
           )}
 
-          <div className="rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
-            <div className="ci-print-show mb-5">
+          {/* Buttons — screen only, appear right after the thank-you header */}
+          <div className="ci-no-print flex flex-col sm:flex-row gap-3 mb-6">
+            <button onClick={() => window.print()}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: GREEN_GRAD }}>
+              <Icon name="download" size={16} className="text-white" />
+              Download PDF
+            </button>
+            <Link to={guidebookPath(slug)}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
+              style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
+              <Icon name="arrow_back" size={16} />
+              Back to Guidebook
+            </Link>
+          </div>
+
+          {/* Full agreement card — print/PDF only, hidden on screen */}
+          <div className="ci-print-show rounded-2xl border p-6 mb-6" style={{ borderColor: t.BORDER, background: t.CARD }}>
+            <div className="mb-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--t-primary)' }}>{brandLabel}</p>
               <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--t-text)' }}>House Rules Agreement</h2>
               <p className="text-[13px]" style={{ color: 'var(--t-muted)' }}>{property.name} · {property.address}</p>
@@ -148,7 +174,7 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
                   </div>
                   <div>
                     <p className="font-semibold text-[13px]" style={{ color: t.TEXT }}>{rule.title}</p>
-                    <div className="ci-print-show text-[11px] leading-relaxed mt-0.5
+                    <div className="text-[11px] leading-relaxed mt-0.5
                       [&_p]:mb-0.5 [&_strong]:font-semibold
                       [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
                       style={{ color: 'var(--t-muted)' }}
@@ -158,10 +184,9 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
                 </div>
               ))}
             </div>
-            <div className="mt-5 pt-4 rounded-xl p-4" style={{
-              borderTop: `1px solid ${t.BORDER}`,
-              background: nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.06)',
-              border: `1px solid rgba(5,150,105,0.2)`,
+            <div className="mt-5 rounded-xl p-4" style={{
+              background: 'rgba(5,150,105,0.06)',
+              border: '1px solid rgba(5,150,105,0.2)',
             }}>
               <p className="text-[12px] italic mb-2" style={{ color: t.MUTED }}>
                 "I hereby agree to follow these rules & share that with all other guests going to stay in this property. I will also share a copy of this agreement with all co-guests."
@@ -170,21 +195,6 @@ function SuccessScreen({ property, slug, data, timestamp, rules, nightMode, offe
               {data.email && <p className="text-[11px]" style={{ color: t.MUTED }}>{data.email}{data.phone ? ` · ${data.phone}` : ''}</p>}
               <p className="text-[11px] mt-0.5" style={{ color: t.MUTED }}>{timestamp}</p>
             </div>
-          </div>
-
-          <div className="ci-no-print flex flex-col sm:flex-row gap-3">
-            <button onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold text-white transition-opacity hover:opacity-90"
-              style={{ background: GREEN_GRAD }}>
-              <Icon name="download" size={16} className="text-white" />
-              Download PDF
-            </button>
-            <Link to={guidebookPath(slug)}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[13px] font-bold border transition-colors"
-              style={{ borderColor: t.BORDER, color: t.PRIMARY }}>
-              <Icon name="arrow_back" size={16} />
-              Back to Guidebook
-            </Link>
           </div>
         </div>
       </div>
@@ -302,6 +312,8 @@ export default function V3CheckInPage() {
   const { property, nightMode } = useOutletContext()
   const { slug } = useParams()
 
+  const [searchParams] = useSearchParams()
+
   // 'choice' | 'primary' | 'guest'
   const [step, setStep] = useState('choice')
 
@@ -331,6 +343,8 @@ export default function V3CheckInPage() {
   const [primaryStep, setPrimaryStep]     = useState('form')
   // Primary-only: Firestore doc ref stored after step-1 save
   const [checkinDocRef, setCheckinDocRef] = useState(null)
+  // Primary-only: shareable resume link shown after step-1
+  const [resumeLink, setResumeLink]       = useState('')
 
   // Guest-only: which primary booker they're staying with
   const [selectedBooker, setSelectedBooker] = useState('')
@@ -357,6 +371,25 @@ export default function V3CheckInPage() {
     load()
     return contentStore.subscribe(load)
   }, [slug])
+
+  // If URL has ?resume=docId, jump directly to step-2 for that booking
+  useEffect(() => {
+    const resumeId = searchParams.get('resume')
+    if (!resumeId) return
+    // Restore name/timestamp from sessionStorage if the same browser submitted step 1
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`talo_checkin_resume_${resumeId}`) || 'null')
+      if (saved) {
+        setForm(f => ({ ...f, firstName: saved.firstName || '', lastName: saved.lastName || '', email: saved.email || '' }))
+        setSubmitTime(saved.ts || '')
+        setSubmittedData({ firstName: saved.firstName || '', lastName: saved.lastName || '', coGuests: [], stayCheckIn: '', stayCheckOut: '' })
+      }
+    } catch {}
+    // Point to the existing Firestore doc (no read needed — updateDoc only requires write access)
+    setCheckinDocRef(doc(db, 'v2_checkins', resumeId))
+    setStep('primary')
+    setPrimaryStep('guests')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resize co-guest rows when counts change (adults first, then minors)
   useEffect(() => {
@@ -469,6 +502,18 @@ export default function V3CheckInPage() {
       setCheckinDocRef(docRef)
       setSubmitTime(ts)
       setSubmittedData({ ...form, coGuests: [], stayCheckIn, stayCheckOut })
+      // Build a resume URL so the host can share it if the guest skips step 2
+      const url = `${window.location.origin}${window.location.pathname}?resume=${docRef.id}`
+      setResumeLink(url)
+      // Cache minimal data so the same browser can restore names on resume
+      try {
+        sessionStorage.setItem(`talo_checkin_resume_${docRef.id}`, JSON.stringify({
+          firstName: form.firstName.trim(),
+          lastName:  form.lastName.trim(),
+          email:     form.email.trim(),
+          ts,
+        }))
+      } catch {}
     } catch (err) {
       console.error('[Firestore] check-in step-1 save failed:', err)
       setSubmitting(false)
@@ -510,7 +555,7 @@ export default function V3CheckInPage() {
       }
     }
 
-    setSubmittedData(prev => ({ ...prev, coGuests: coGuestData, stayCheckIn, stayCheckOut }))
+    setSubmittedData(prev => ({ ...(prev || {}), coGuests: coGuestData, stayCheckIn, stayCheckOut }))
     setSubmitted(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -670,6 +715,38 @@ export default function V3CheckInPage() {
                   background: nightMode ? 'rgba(29,78,216,0.12)' : 'rgba(37,99,235,0.06)',
                 }}>
                 <p className="text-[13px] leading-relaxed font-medium" style={{ color: t.TEXT }}>{offerText}</p>
+              </div>
+            )}
+
+            {/* Resume link — so the host can share it if the guest leaves before step 2 */}
+            {resumeLink && (
+              <div className="rounded-2xl p-4 mb-5 border"
+                style={{
+                  borderColor: 'rgba(5,150,105,0.25)',
+                  background: nightMode ? 'rgba(5,150,105,0.08)' : 'rgba(5,150,105,0.05)',
+                }}>
+                <p className="text-[12px] font-semibold mb-1.5" style={{ color: t.TEXT }}>
+                  Save this link to come back and add your guests later:
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={resumeLink}
+                    className="flex-1 px-3 py-2 rounded-lg text-[11px] outline-none select-all"
+                    style={{ border: `1.5px solid ${t.BORDER}`, background: 'var(--t-bg)', color: t.MUTED }}
+                    onClick={e => e.target.select()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { try { navigator.clipboard.writeText(resumeLink) } catch {} }}
+                    className="px-3 py-2 rounded-lg text-[11px] font-bold flex-shrink-0"
+                    style={{ background: 'rgba(5,150,105,0.15)', color: '#059669' }}>
+                    Copy
+                  </button>
+                </div>
+                <p className="text-[10px] mt-1.5" style={{ color: t.MUTED }}>
+                  Your details are already saved. This link lets you (or your guests) complete step 2 at any time.
+                </p>
               </div>
             )}
 
