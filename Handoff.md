@@ -1194,3 +1194,95 @@ properties[slug].v3HeroImageNight / v3HeroImageNightPath: night hero
 - Upgraded project to **Blaze** (pay-as-you-go) plan — required for Storage
 - Budget alert set at $10/mo (50/90/100% thresholds) in Google Cloud
 - Storage rules published (see "Firebase Storage rules" above)
+
+---
+
+*Sessions 14–18 notes missing from Handoff.md — see memory file (talo-guidebook-project.md) for the Jul 2026 features: 20-theme system, guest roster merge, Rental Terms + booking dates + booker dropdown, starter template / duplicate / global logo, preview mode, maintenance mode, global host info migration.*
+
+---
+
+## Session 19 (Aug 31 2026) — DEPLOYED & LIVE
+
+All of the following is live in production (Cloudflare Workers via `npm run deploy:cf`).
+Cloud Functions deployed to us-central1 via Firebase CLI.
+**Git commits are local only — `git push` was NOT run during this session. Push before next session.**
+
+### What changed
+
+1. **Two-step primary booker check-in flow — complete end-to-end**
+   - Step 1: primary booker fills rules + personal details + check-in/out dates + cars/day-visitors → single `setDoc` creates a new doc in `v2_checkins` with pre-generated ref (doc id known before write). All state updates execute OUTSIDE the try block so a failed write aborts without a blank screen.
+   - Step 2: primary booker enters co-guest names + ages → another `setDoc` creating a brand-new doc (NOT `updateDoc`) with the full payload (all primary data re-included + co-guest data + `step1DocId` link + `resumeUrl`). New doc becomes the `lead` in `buildGuestGroups` because it's newer; step-1 doc remains as audit trail.
+
+2. **Resume link — stored invisibly, admin-accessible**
+   - Resume URL (`?resume=<step1DocId>`) is stored in Firestore (both step-1 and step-2 docs carry `resumeUrl`) but never shown to the guest.
+   - Admin Check-In Records page shows a **"Resume Link"** copy button next to each primary booker's name (visible always — even after step 2 complete, because step-2 doc also carries `resumeUrl`).
+   - Copying writes to clipboard; button briefly shows "Copied!" feedback.
+
+3. **Resume link deep-links to step 2 (skips choice screen)**
+   - Opening `?resume=<id>` pre-populates all primary booker state and navigates directly to `primaryStep = 'guests'` — the co-guest form — bypassing step 0 (primary/guest choice) and the rules form.
+
+4. **Resume link works in incognito / unauthenticated sessions**
+   - **Root cause of prior failure:** `getDoc()` on `v2_checkins` requires Firebase Auth (security rules: `allow read: if request.auth != null`). Incognito has no auth → silent failure → component stayed on step 0.
+   - **Fix:** New `getCheckinResume` Cloud Function (Firebase Admin SDK, bypasses rules). Resume `useEffect` now calls `httpsCallable(functions, 'getCheckinResume')` instead of `getDoc()`. Works with no auth session.
+
+5. **Step-2 "check your internet connection" error — fixed**
+   - Root cause: previous code used `updateDoc` on the existing step-1 doc. Firestore rules allow `create` for guests but NOT `update`. Every step-2 submission was rejected.
+   - Fix: `setDoc` to a brand-new doc ID instead.
+
+6. **Blank screen after step-1 submit — fixed (third time; now definitive)**
+   - Root cause: prior code used `addDoc` then `updateDoc` (to add `resumeUrl`). The `updateDoc` failed (same rules issue). Catch block returned early before `setPrimaryStep('guests')` could run.
+   - Fix: Pre-generate doc ref with `doc(collection(db, 'v2_checkins'))`, include `resumeUrl` in the initial `setDoc` payload. Single write, state updates outside try.
+
+7. **Success screen centered on screen (desktop + mobile)**
+   - Separate DOM containers for screen view and print view. Screen container: `min-h-screen flex flex-col items-center justify-center`. Print container: hidden on screen, shown only in `@media print`.
+
+8. **PDF download always white background**
+   - Root cause: `[data-theme="dark"]` selector has higher specificity than bare `:root`. Dark theme vars were winning over print-block vars.
+   - Fix: `!important` on all CSS custom property overrides inside `@media print { :root { … } }`.
+
+9. **Exported 36 Talo activities to Excel** — file placed in `~/Downloads/talo-activities.xlsx`. No code changes.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `src/guidebook/v3/V3CheckInPage.jsx` | `handleSubmitStep1` rewritten (single `setDoc`, pre-generated ref, state outside try); `handleSubmitStep2` rewritten (`setDoc` new doc, carries `resumeUrl`); resume `useEffect` now calls `getCheckinResume` Cloud Function; success screen centered + PDF white fix |
+| `src/data/guestRoster.js` | `buildGuestGroups` now includes `resumeUrl`, `carsCount`, `dayVisitorsCount` on group object |
+| `src/admin-v2/pages/CheckIns.jsx` | Added "Resume Link" copy button in primary booker header row |
+| `functions/index.js` | Added `getCheckinResume` Cloud Function (Admin SDK, unauthenticated, returns step-1 doc fields only) |
+
+### Data model (v2_checkins)
+
+Step-1 doc (created on step-1 submit, lives as audit trail):
+```
+{ tenantId, propertySlug, propertyName, checkinRole: 'primary',
+  firstName, lastName, guestName, primaryGuestName, email, phone,
+  submittedAt, submittedAtFormatted, agreedRules[],
+  stayCheckIn, stayCheckOut, carsCount, dayVisitorsCount,
+  adultsCount: 0, minorsCount: 0, coGuests: [],
+  resumeUrl: 'https://…?resume=<this-doc-id>' }
+```
+
+Step-2 doc (created on step-2 submit, becomes `lead` for admin display):
+```
+{ …same primary fields…,
+  adultsCount, minorsCount, coGuests: [{firstName, lastName, age, isMinor}],
+  step1DocId: '<step-1-doc-id>',
+  resumeUrl: 'https://…?resume=<step-1-doc-id>' }
+```
+
+### Multi-session guest entry (accepted limitation)
+Opening resume link always pre-populates from step-1 doc (which has `coGuests: []`). Each resume session REPLACES the guest list, not appends. True additive sessions would require querying for the latest step-2 doc — blocked by Firestore read rules (`allow read: if request.auth != null`) without another Cloud Function. Accepted for now.
+
+### Cloud Functions deployed this session
+- `getCheckinResume` — new, deployed us-central1
+- `getActivePrimaryBookers` — pre-existing, unchanged
+
+### Pending (carried forward)
+- **Push to GitHub:** 7 local commits not yet pushed. Run `git push origin main`.
+- **Node 20 → 22 Cloud Functions** — deadline Oct 30 2026
+- **Stripe integration** — blocked on Stripe account
+- **P6 Support ticket system** — after Stripe
+- **Session guard deadlock bug** — found Jul 11 2026, not yet fixed
+- **Multi-session additive guest entry** — accepted limitation, noted above
+- **Slug-change feature** — complex, no ETA
