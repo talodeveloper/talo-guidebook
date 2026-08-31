@@ -566,6 +566,10 @@ export default function V3CheckInPage() {
       minorsCount:          minorCount,
       coGuests:             coGuestData,
       step1DocId:           checkinDocRef?.id || null,
+      // Carry the resume URL forward so the admin button stays visible after step 2.
+      resumeUrl:            checkinDocRef?.id
+        ? `${window.location.origin}${window.location.pathname}?resume=${checkinDocRef.id}`
+        : null,
     }
 
     try {
