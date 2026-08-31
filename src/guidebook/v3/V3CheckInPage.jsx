@@ -527,7 +527,9 @@ export default function V3CheckInPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // ── Step-2: update the same doc with co-guest details, show success screen ──
+  // ── Step-2: write a complete new doc (create, not update) so this works even
+  //   when Firestore rules only grant `create` on v2_checkins. The step-1 doc is
+  //   superseded — buildGuestGroups always picks the most-recent primary as lead.
   const handleSubmitStep2 = async (e) => {
     e.preventDefault()
     if (!canSubmitStep2 || submitting) return
@@ -541,19 +543,38 @@ export default function V3CheckInPage() {
       isMinor:   Number(g.age) < 18,
     }))
 
-    if (checkinDocRef) {
-      try {
-        await updateDoc(doc(db, 'v2_checkins', checkinDocRef.id), {
-          adultsCount: adultCount,
-          minorsCount: minorCount,
-          coGuests:    coGuestData,
-        })
-      } catch (err) {
-        console.error('[Firestore] check-in step-2 update failed:', err)
-        setSubmitting(false)
-        setSubmitError('Something went wrong saving your guests. Please check your connection and try again.')
-        return
-      }
+    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`
+    const payload = {
+      tenantId:             getTenantId(),
+      propertySlug:         slug,
+      propertyName:         property.name,
+      checkinRole:          'primary',
+      firstName:            form.firstName.trim(),
+      lastName:             form.lastName.trim(),
+      guestName:            fullName,
+      primaryGuestName:     fullName,
+      email:                form.email.trim() || '',
+      phone:                form.phone.trim() || '',
+      submittedAt:          new Date().toISOString(),
+      submittedAtFormatted: submitTime || '',
+      agreedRules:          rules.map(r => ({ id: r.id, title: r.title })),
+      stayCheckIn,
+      stayCheckOut,
+      carsCount,
+      dayVisitorsCount:     hasDayVisitors ? dayVisitors : 0,
+      adultsCount:          adultCount,
+      minorsCount:          minorCount,
+      coGuests:             coGuestData,
+      step1DocId:           checkinDocRef?.id || null,
+    }
+
+    try {
+      await setDoc(doc(collection(db, 'v2_checkins')), payload)
+    } catch (err) {
+      console.error('[Firestore] check-in step-2 save failed:', err)
+      setSubmitting(false)
+      setSubmitError('Something went wrong saving your guests. Please check your connection and try again.')
+      return
     }
 
     setSubmittedData(prev => ({ ...(prev || {}), coGuests: coGuestData, stayCheckIn, stayCheckOut }))
