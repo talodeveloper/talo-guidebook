@@ -132,3 +132,32 @@ export const getActivePrimaryBookers = onCall(async (request) => {
 
   return { bookers: active }
 })
+
+// getCheckinResume: called by the (unauthenticated) guest check-in page when
+// a ?resume=docId param is present. Fetches the step-1 primary doc server-side
+// (admin SDK bypasses Firestore security rules) and returns only the fields
+// needed to pre-populate the step-2 guest form — no unnecessary PII exposed.
+export const getCheckinResume = onCall(async (request) => {
+  const docId = String(request.data?.docId || '').trim()
+  if (!docId) throw new HttpsError('invalid-argument', 'docId is required.')
+
+  const snap = await db.collection('v2_checkins').doc(docId).get()
+  if (!snap.exists) throw new HttpsError('not-found', 'Check-in record not found.')
+
+  const d = snap.data()
+  if (d.checkinRole !== 'primary') throw new HttpsError('not-found', 'Not a primary booker record.')
+
+  return {
+    propertySlug:         d.propertySlug         || '',
+    firstName:            d.firstName             || '',
+    lastName:             d.lastName              || '',
+    email:                d.email                 || '',
+    phone:                d.phone                 || '',
+    stayCheckIn:          d.stayCheckIn           || '',
+    stayCheckOut:         d.stayCheckOut          || '',
+    carsCount:            d.carsCount             ?? 0,
+    dayVisitorsCount:     d.dayVisitorsCount      ?? 0,
+    submittedAtFormatted: d.submittedAtFormatted  || '',
+    coGuests:             d.coGuests              || [],
+  }
+})
