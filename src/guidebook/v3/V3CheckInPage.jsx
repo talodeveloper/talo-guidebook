@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useOutletContext, useParams, Link } from 'react-router-dom'
 import { contentStore } from '../../data/contentStore'
 import { NightModeCtx, readV3Data, resolveGuidebookLogo } from './V3GuidebookPage'
-import { applyPropertyBlockOrder, DEFAULT_CHECKIN_OFFER } from '../../data/adminV3Store'
+import { applyPropertyBlockOrder } from '../../data/adminV3Store'
 import { guidebookPath, getTenantId } from '../../data/tenant'
 import Icon from '../../components/Icon'
 import { db, functions } from '../../firebase'
@@ -352,7 +352,7 @@ export default function V3CheckInPage() {
   const [bookersError, setBookersError]     = useState('')
 
   const t = buildTheme()
-  const offerText = property.checkInOfferText || DEFAULT_CHECKIN_OFFER
+  const offerText = (property.checkInOfferText || '').trim()
 
   // Load house rules in the per-property curated order
   useEffect(() => {
