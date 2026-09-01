@@ -428,7 +428,7 @@ function migrateHawkBedroomImages(data, persistKey) {
 }
 
 // Patch existing draft activities with imageUrls from seed (migration for already-stored drafts)
-function migrateImages(draft) {
+function migrateImages(draft, persistKey = DRAFT_KEY) {
   if (!draft?.activities) return draft
   const seedMap = Object.fromEntries(SEED_ACTIVITIES.map(a => [a.id, a.imageUrl]))
   let changed = false
@@ -436,7 +436,7 @@ function migrateImages(draft) {
     if (!a.imageUrl && seedMap[a.id]) { changed = true; return { ...a, imageUrl: seedMap[a.id] } }
     return a
   })
-  if (changed) writeJSON(DRAFT_KEY, draft)
+  if (changed) writeJSON(persistKey, draft)
   return draft
 }
 
@@ -604,12 +604,14 @@ if (
 
 if (_draft) {
   // Fast path: a local working copy exists — trust it (unchanged behavior).
+  // Both _draft and _live must go through IDENTICAL pipelines or
+  // hasUnsavedChanges() reports spurious "unpublished changes".
   _draft = migrateImages(_draft)
   _draft = postProcessDraft(_draft)
-  // _live must go through the SAME pipeline (not just the Hawk fix) or it will
-  // never be exactly comparable to _draft, causing hasUnsavedChanges() to
-  // report false "unpublished changes" for edits that never happened.
-  if (_live) _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
+  if (_live) {
+    _live = migrateImages(_live, ADMIN_V3_LIVE_KEY)
+    _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
+  }
   writeJSON(DRAFT_KEY, _draft)
   _ready = true
 } else if (_live) {
@@ -1548,8 +1550,11 @@ export const adminV3Store = {
       const remoteAt   = snap.exists() ? (snap.data()?.updatedAt || null) : null
       // Block if Firestore has been updated since this tab last loaded — another
       // device or tab already published. Reload first to get the latest content.
-      if (remoteAt && _loadedRemoteAt && remoteAt > _loadedRemoteAt) {
-        console.warn('[adminV3Store] publish BLOCKED — content updated remotely since this tab loaded')
+      // Also block if _loadedRemoteAt is null: this device never confirmed it
+      // holds the current Firestore version (fast-path load with no Firestore
+      // sync yet), so we can't vouch for the draft being up-to-date.
+      if (remoteAt && (!_loadedRemoteAt || remoteAt > _loadedRemoteAt)) {
+        console.warn('[adminV3Store] publish BLOCKED — content updated remotely since this tab loaded (or tab never synced with Firestore)')
         return 'blocked-stale'
       }
       // Block if this draft would wipe out uploaded images that live in Firestore.
