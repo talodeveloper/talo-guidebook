@@ -527,7 +527,12 @@ function postProcessDraft(draft, persistKey = DRAFT_KEY) {
 
 // When a browser has no local copy, load THIS tenant's published content from
 // Firestore instead of treating the built-in defaults as publishable.
-async function hydrateFromFirestore() {
+//
+// liveOnly=true: fetch _live from Firestore without overwriting _draft. Used
+// when _draft already exists in localStorage but _live is missing — this
+// recovers the published baseline for comparison without discarding the
+// admin's work-in-progress draft.
+async function hydrateFromFirestore({ liveOnly = false } = {}) {
   try {
     const snap = await getDoc(doc(db, ...fsPaths.tenantDataLive()))
     const full = snap.exists() ? snap.data()?.data : null
@@ -542,24 +547,40 @@ async function hydrateFromFirestore() {
       // persisting backfills to the live slot instead of the draft slot) so
       // the two are exactly comparable.
       _live = postProcessDraft(full, ADMIN_V3_LIVE_KEY)
-      _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
       writeJSON(ADMIN_V3_LIVE_KEY, _live)
-      writeJSON(DRAFT_KEY, _draft)
+      if (!liveOnly) {
+        _draft = postProcessDraft(JSON.parse(JSON.stringify(_live)))
+        writeJSON(DRAFT_KEY, _draft)
+      }
       _ready = true
     } else {
       // Genuinely new tenant with nothing published yet — start BLANK (never the
       // TALO seed). Align _live with the empty draft so hasUnsavedChanges()
       // returns false until the user actually makes a real change.
-      _draft = postProcessDraft(buildEmptyDraft())
-      _live = JSON.parse(JSON.stringify(_draft))
-      writeJSON(DRAFT_KEY, _draft)
+      if (liveOnly) {
+        // No published content — align _live with the existing _draft so the
+        // admin sees no spurious "publish everything" on their first session.
+        _live = postProcessDraft(JSON.parse(JSON.stringify(_draft)), ADMIN_V3_LIVE_KEY)
+      } else {
+        _draft = postProcessDraft(buildEmptyDraft())
+        _live = JSON.parse(JSON.stringify(_draft))
+        writeJSON(DRAFT_KEY, _draft)
+      }
       writeJSON(ADMIN_V3_LIVE_KEY, _live)
       _ready = true
     }
   } catch (err) {
-    // Fail safe: keep publish disabled rather than risk clobbering live data.
+    if (liveOnly) {
+      // Can't reach Firestore — align _live with _draft to prevent a spurious
+      // "Initial setup · All Properties" from blocking the admin.
+      _live = JSON.parse(JSON.stringify(_draft))
+      writeJSON(ADMIN_V3_LIVE_KEY, _live)
+      _ready = true
+    } else {
+      // Fail safe: keep publish disabled rather than risk clobbering live data.
+      _ready = false
+    }
     console.warn('[adminV3Store] could not load live content; publish stays disabled until reload', err)
-    _ready = false
   } finally {
     _hydrating = false
     notify()
@@ -611,9 +632,18 @@ if (_draft) {
   if (_live) {
     _live = migrateImages(_live, ADMIN_V3_LIVE_KEY)
     _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
+    writeJSON(ADMIN_V3_LIVE_KEY, _live)
+    writeJSON(DRAFT_KEY, _draft)
+    _ready = true
+  } else {
+    // _draft exists but _live is absent (old browser, partial localStorage clear,
+    // or first load on a device that never ran hydrateFromFirestore). Fetch only
+    // _live from Firestore — preserve the admin's work-in-progress _draft.
+    writeJSON(DRAFT_KEY, _draft)
+    _ready = false
+    _hydrating = true
+    hydrateFromFirestore({ liveOnly: true })
   }
-  writeJSON(DRAFT_KEY, _draft)
-  _ready = true
 } else if (_live) {
   // A published copy exists locally but no draft — derive the draft from it.
   _live = postProcessDraft(_live, ADMIN_V3_LIVE_KEY)
