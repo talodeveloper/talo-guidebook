@@ -637,12 +637,23 @@ if (_draft) {
     _ready = true
   } else {
     // _draft exists but _live is absent (old browser, partial localStorage clear,
-    // or first load on a device that never ran hydrateFromFirestore). Fetch only
-    // _live from Firestore — preserve the admin's work-in-progress _draft.
+    // or first load on a device that never ran hydrateFromFirestore).
+    // Align _live with _draft so hasUnsavedChanges() returns false and the
+    // Publish button doesn't show a spurious "Initial setup · All Properties".
+    // Fetching _live from Firestore and comparing would introduce false diffs
+    // (migrations stamp different timestamps each run). Silently fetch only the
+    // remote timestamp so the publish staleness guard has a reference point.
+    _live = JSON.parse(JSON.stringify(_draft))
+    writeJSON(ADMIN_V3_LIVE_KEY, _live)
     writeJSON(DRAFT_KEY, _draft)
-    _ready = false
-    _hydrating = true
-    hydrateFromFirestore({ liveOnly: true })
+    _ready = true
+    getDoc(doc(db, ...fsPaths.tenantDataLive())).then(snap => {
+      const remoteAt = snap.exists() ? (snap.data()?.updatedAt || null) : null
+      if (remoteAt) {
+        _loadedRemoteAt = remoteAt
+        try { localStorage.setItem(LOADED_AT_KEY, String(remoteAt)) } catch {}
+      }
+    }).catch(() => {})
   }
 } else if (_live) {
   // A published copy exists locally but no draft — derive the draft from it.
