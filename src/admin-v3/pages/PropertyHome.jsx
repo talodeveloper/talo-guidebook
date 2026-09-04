@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { adminV3Store, BASE_PROPERTY_SLUGS } from '../../data/adminV3Store'
-import { getHostMode, guidebookPath } from '../../data/tenant'
+import { getHostMode, guidebookPath, getTenantId, tenantOrigin } from '../../data/tenant'
 import Icon from '../../components/Icon'
 
 // Full href to the guest guidebook — tenant subdomain → /{slug}. `?preview=1`
@@ -120,6 +120,8 @@ export default function PropertyHomeV3() {
   const [isEmpty, setIsEmpty] = useState(adminV3Store.isPropertyEmpty(slug))
   const [loadedMsg, setLoadedMsg] = useState(null)
   const [dupSource, setDupSource] = useState('')
+  const [copiedSection, setCopiedSection] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     // Re-fetch immediately when navigating between properties (slug change),
@@ -164,6 +166,14 @@ export default function PropertyHomeV3() {
 
   const blockCount = (sectionKey) =>
     adminV3Store.getBlocksForSection(sectionKey, slug).length
+
+  const copyGuestLink = (e, sectionKey) => {
+    e.stopPropagation()
+    const url = `${tenantOrigin(getTenantId())}${guidebookPath(slug)}#${sectionKey}`
+    navigator.clipboard.writeText(url).catch(() => {})
+    setCopiedSection(sectionKey)
+    setTimeout(() => setCopiedSection(null), 2000)
+  }
 
   const handleToggleStatus = () => {
     if (!confirmStatus) { setConfirmStatus(true); return }
@@ -346,10 +356,11 @@ export default function PropertyHomeV3() {
         {sectionConfig.filter(s => !s.page).map(section => {
           const count = blockCount(section.key)
           const disabled = section.enabled === false
+          const isCopied = copiedSection === section.key
           return (
-            <Link key={section.key}
-              to={`/admin-v3/property/${slug}/section/${section.key}`}
-              className={`bg-white rounded-xl border p-4 hover:border-orange-200 hover:shadow-sm transition-all group flex flex-col gap-2 ${disabled ? 'border-slate-200 opacity-50' : 'border-slate-200'}`}>
+            <div key={section.key}
+              onClick={() => navigate(`/admin-v3/property/${slug}/section/${section.key}`)}
+              className={`cursor-pointer bg-white rounded-xl border p-4 hover:border-orange-200 hover:shadow-sm transition-all group flex flex-col gap-2 ${disabled ? 'border-slate-200 opacity-50' : 'border-slate-200'}`}>
               <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                 style={{ background: section.custom ? 'linear-gradient(135deg, #4338CA, #6D28D9)' : 'linear-gradient(135deg, #C84B31, #EA580C)' }}>
                 <Icon name={section.icon} size={15} className="text-white" />
@@ -360,8 +371,16 @@ export default function PropertyHomeV3() {
                   {count} block{count !== 1 ? 's' : ''}{disabled ? ' · hidden' : ''}
                 </p>
               </div>
-              <Icon name="edit" size={13} className="text-slate-300 group-hover:text-orange-500 transition-colors self-end" />
-            </Link>
+              <div className="flex items-center justify-end gap-2 self-end">
+                <button
+                  onClick={(e) => copyGuestLink(e, section.key)}
+                  title={isCopied ? 'Copied!' : 'Copy guest link'}
+                  className={`transition-colors ${isCopied ? 'text-green-500' : 'text-slate-300 hover:text-orange-500'}`}>
+                  <Icon name={isCopied ? 'check' : 'link'} size={13} />
+                </button>
+                <Icon name="edit" size={13} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
+              </div>
+            </div>
           )
         })}
       </div>
