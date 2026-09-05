@@ -1,6 +1,8 @@
 # Talo Guidebook — Session Handoff
 
-> **Last updated: Jul 29 2026 — Global host info: Host Information moved from per-property to GlobalContent; mobile/tablet guidebook gets slim "Your Host" strip (Call/Text only)**
+> **Last updated: Sep 5 2026 — Session 20: spurious "publish everything" fix (3 layers), Lorem Ipsum fallback fix, section deep-links + admin copy-link buttons, GitHub pushed (28 commits)**
+> Previous: Aug 31 2026 — Two-step primary booker check-in, resume link (Cloud Function), success screen centering, white PDF in night mode
+> Previous: Jul 29 2026 — Global host info: Host Information moved from per-property to GlobalContent; mobile/tablet guidebook gets slim "Your Host" strip (Call/Text only)
 > Previous: Jul 11 2026 — Rental Terms rename + booking dates + guest→booker dropdown (getActivePrimaryBookers Cloud Function), false "unpublished changes" fix, wrong-workspace login guard, starter template + duplicate guidebook + global logo, lorem-ipsum check-in offer, preview-mode (?preview=1) fix
 > Previous: Jul 2 2026 — Guest roster merge (co-guests + guest sign-ins under each primary booker), Guest Database full roster + P/G type column, smart checkout, maintenance-mode activation fix
 > Previous: Jul 1 2026 — Per-property theme system (20 themes), night sky photo backgrounds, live iframe theme preview, rich-text toolbar additions
@@ -1198,6 +1200,32 @@ properties[slug].v3HeroImageNight / v3HeroImageNightPath: night hero
 ---
 
 *Sessions 14–18 notes missing from Handoff.md — see memory file (talo-guidebook-project.md) for the Jul 2026 features: 20-theme system, guest roster merge, Rental Terms + booking dates + booker dropdown, starter template / duplicate / global logo, preview mode, maintenance mode, global host info migration.*
+
+---
+
+## Session 20 (Sep 5 2026) — DEPLOYED & PUSHED TO GITHUB
+
+**Bug fixes (adminV3Store.js):**
+
+1. **Spurious "Publish everything" after login** — root cause: when `_draft` existed in localStorage but `ADMIN_V3_LIVE_KEY` was absent, fast path set `_ready = true` with `_live = null` → `hasUnsavedChanges()` = true → "Initial setup · All Properties". Fix: align `_live = copy(_draft)`, write both to localStorage, then silently fetch only the remote `updatedAt` timestamp from Firestore (staleness guard) in the background.
+
+2. **migrateImages not applied to `_live`** — fast path applied `migrateImages` to `_draft` but not `_live`, causing activity `imageUrl` diffs. Fixed: `migrateImages(_live, ADMIN_V3_LIVE_KEY)` now runs. Also fixed: `migrateImages` now accepts `persistKey` param (was hardcoded to `DRAFT_KEY`).
+
+3. **Staleness guard null hole** — `if (remoteAt && _loadedRemoteAt && remoteAt > _loadedRemoteAt)` passed when `_loadedRemoteAt = null`. Fixed to `if (remoteAt && (!_loadedRemoteAt || remoteAt > _loadedRemoteAt))`.
+
+4. **`_live` not written back after fast-path migrations** — Added `writeJSON(ADMIN_V3_LIVE_KEY, _live)` unconditionally in fast path so migrated `_live` persists to localStorage on every load.
+
+5. **liveOnly regression** — An intermediate approach fetching `_live` from Firestore with `hydrateFromFirestore({ liveOnly: true })` caused false diffs: `postProcessDraft` stamps `deactivatedAt: new Date().toISOString()` on inactive properties — timestamps differ each run. Reverted to draft-alignment approach (item 1 above).
+
+**Bug fix (V3CheckInPage.jsx):**
+
+6. **Lorem Ipsum offer text on step 2 via resume link** — `property.checkInOfferText || DEFAULT_CHECKIN_OFFER`: empty string is falsy → Lorem Ipsum showed when field was blank. Fixed: `(property.checkInOfferText || '').trim()` + `{offerText && ...}` hides banner when empty.
+
+**Feature (PropertyHome.jsx):**
+
+7. **Section deep-links + admin copy-link buttons** — Guidebook sections already had `id={section.key}` and scroll-to-hash `useEffect`. Added 🔗 icon button next to pencil on each section card. Click copies full guest URL with hash (e.g. `https://talo.talo.llc/reynard-way#house_rules`) to clipboard; flashes green check 2 seconds. Cards converted from `<Link>` to `<div onClick={navigate(...)}>` to allow nested `<button>`.
+
+**GitHub:** all 28 local commits (Sessions 18+19+20) pushed with new classic PAT. Rotate ~90 days.
 
 ---
 
